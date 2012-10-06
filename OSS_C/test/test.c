@@ -18,6 +18,13 @@
 #include <libxml/parser.h>
 #include <assert.h>
 
+
+struct MemoryStruct {
+  char *memory;
+  size_t size;
+};
+
+
 static const char* buckets =
 		"<?xml version=\"1.0\" encoding=\"UTF-8\"?>\
 <ListAllMyBucketsResult>\
@@ -43,12 +50,14 @@ void test_curl();
 
 void test_bucket_xmls();
 
+void test_bucket_xmls2(char*);
+
 int main() {
 	//test_base64_encode("��䦦�µm�T*Jl4�");
 //	test_localtime_gmt();
 	//test_hmac_base64();
-	//test_curl();
-	test_bucket_xmls();
+	test_curl();
+	//test_bucket_xmls();
 	return 0;
 }
 
@@ -76,6 +85,24 @@ static const char* header(char* buf, char* key, char* value) {
 	return buf;
 }
 
+static size_t write_data(void *buffer, size_t size, size_t nmemb, void *userp){
+	  size_t realsize = size * nmemb;
+	  struct MemoryStruct *mem = (struct MemoryStruct *)userp;
+
+	  mem->memory = realloc(mem->memory, mem->size + realsize + 1);
+	  if (mem->memory == NULL) {
+	    /* out of memory! */
+	    printf("not enough memory (realloc returned NULL)\n");
+	    exit(EXIT_FAILURE);
+	  }
+
+	  memcpy(&(mem->memory[mem->size]), buffer, realsize);
+	  mem->size += realsize;
+	  mem->memory[mem->size] = 0;
+
+	  return realsize;
+}
+
 /*
  <?xml version="1.0" encoding="UTF-8"?>
  <ListAllMyBucketsResult>
@@ -101,6 +128,9 @@ void test_curl() {
 	//const char* ACCESS_ID = "abysmn89uz488l1dfycon3qa";
 	char* ACCESS_KEY = "qfEZ+LNuGJUP/FlRw1R3aKpwiwY=";
 	char* method = "GET";
+	struct MemoryStruct content;
+	content.memory = malloc(1);
+	content.size = 0;
 	M_str date = localtime_gmt();
 	char* host = "storage.aliyun.com";
 	char* content_type = "text/html";
@@ -124,13 +154,17 @@ void test_curl() {
 		curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
 
 		res = curl_easy_setopt(curl, CURLOPT_HTTPHEADER, chunk);
+		curl_easy_setopt(curl,CURLOPT_WRITEFUNCTION,write_data);
+		curl_easy_setopt(curl,CURLOPT_WRITEDATA,(void*)&content);
 		res = curl_easy_perform(curl);
 
 		if (res != CURLE_OK) {
 			printf("ERROR:%s\n", curl_easy_strerror(res));
 		} else {
-
+			test_bucket_xmls2(content.memory);
+			fprintf(stderr,"%d\n",content.size);
 		}
+		free(content.memory);
 		free(date);
 		free(authorization);
 		curl_slist_free_all(chunk);
@@ -224,4 +258,21 @@ void test_bucket_xmls() {
 	}
 	xmlFreeDoc(doc);
 	return;
+}
+void test_bucket_xmls2(char* content){
+	struct Owner* owner = (struct Owner*)malloc(sizeof(struct Owner));
+	List list = oss_ListAllMyBucketsResult(buckets,owner);
+	List node;
+	printf(owner->id);
+	free(owner->id);
+	free(owner->displayName);
+	free(owner);
+	for_each(node,list){
+		struct Bucket* bucket = (struct Bucket*)node->ptr;
+		fprintf(stderr,"%s\n",bucket->name);
+		free(bucket->name);
+		free(bucket->creationDate);
+		free(bucket);
+	}
+	listFree(list);
 }

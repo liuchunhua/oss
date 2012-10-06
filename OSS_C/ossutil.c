@@ -50,6 +50,60 @@ static M_str hmac_base64(const char* string, int len, const char* key,
 
 }
 
+
+static struct Owner* getOwner(xmlNodePtr node) {
+	if (!strcmp((char*) node->name, "Owner")) {
+		xmlNodePtr cur = node->children;
+		struct Owner* owner = (struct Owner*) malloc(sizeof(struct Owner));
+		assert(owner!=NULL);
+		while (cur) {
+			if (cur->type == XML_ELEMENT_NODE && !strcmp((char*)cur->name, "ID")) {
+				owner->id = (char*)xmlNodeGetContent(cur);
+			}
+			if (cur->type == XML_ELEMENT_NODE && !strcmp((char*)cur->name, "DisplayName")) {
+				owner->displayName = (char*)xmlNodeGetContent(cur);
+			}
+			cur = cur->next;
+		}
+		return owner;
+	}
+	return NULL ;
+}
+static struct Bucket* getBucket(xmlNodePtr node){
+	if(!strcmp((char*)node->name,"Bucket")){
+		xmlNodePtr cur = node->children;
+		struct Bucket* bucket = (struct Bucket*)malloc(sizeof(struct Bucket));
+		assert(bucket!=NULL);
+		while(cur){
+			if(cur->type==XML_ELEMENT_NODE&&!strcmp((char*)cur->name,"Name")){
+				bucket->name = (char*)xmlNodeGetContent(cur);
+			}
+			if(cur->type==XML_ELEMENT_NODE&&!strcmp((char*)cur->name,"CreationDate")){
+				bucket->creationDate = (char*)xmlNodeGetContent(cur);
+			}
+			cur = cur->next;
+		}
+		return bucket;
+	}
+	return NULL;
+}
+static List getListBucket(xmlNodePtr node){
+	if(!strcmp((char*)node->name,"Buckets")){
+		xmlNodePtr cur = node->children;
+		List list = listInit();
+		while(cur){
+			if(cur->type==XML_ELEMENT_NODE&&!strcmp((char*)cur->name,"Bucket")){
+				struct Bucket* bucket = getBucket(cur);
+				if(bucket) listAdd(list,bucket);
+			}
+			cur = cur->next;
+		}
+		return list;
+	}
+	return NULL;
+}
+
+
 M_str oss_authorizate(const char* key, const char* method,
 		struct HashTable* headers, const char* resource) {
 	char* date = (char*) hash_table_get(headers, "Date");
@@ -73,10 +127,27 @@ M_str oss_authorizate(const char* key, const char* method,
 	return hmac_base64(buf, strlen(buf), key, strlen(key));
 }
 
-List oss_ListAllMyBucketsResult(const char* xml) {
+List oss_ListAllMyBucketsResult(const char* xml,struct Owner* owner) {
 	xmlDocPtr doc;
+	xmlNodePtr root;
+	xmlNodePtr cur;
+	List list;
 	doc = xmlReadMemory(xml, strlen(xml), "noname.xml", NULL, 0);
 	assert(doc!=NULL);
-
+	root = xmlDocGetRootElement(doc);
+	cur = root->children;
+	while (cur != NULL ) {
+		if (!strcmp((char*) cur->name, "Owner")&&owner!=NULL) {
+			struct Owner* temp = getOwner(cur);
+			owner->id = temp->id;
+			owner->displayName = temp->displayName;
+			free(temp);
+		}
+		if (strcmp((char*)cur->name, "Buckets") == 0) {
+			list = getListBucket(cur);
+		}
+		cur = cur->next;
+	}
 	xmlFreeDoc(doc);
+	return list;
 }

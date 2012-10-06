@@ -14,6 +14,9 @@ struct _List{
 	struct _List* prev;
 };
 typedef struct _List* List;
+
+#define for_each(node,list) for(node=list->next;list!=node;node=node->next)
+
 /**
  * 初始话链表
  */

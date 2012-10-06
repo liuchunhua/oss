@@ -51,8 +51,10 @@ M_str oss_authorizate(const char* key,const char* method, struct HashTable* head
 
 /*
  * @description:得到所有buckets
- * @return:	List<Bucket>
+ * @param:	owner id NULL
+ * @param:	List<struct Bucket*>
+ * @return:	List<struct Bucket*>
  */
-List oss_ListAllMyBucketsResult(const char* xml);
+List oss_ListAllMyBucketsResult(const char* xml,struct Owner* owner);
 
 #endif /* OSSUTIL_H_ */

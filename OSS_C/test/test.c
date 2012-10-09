@@ -8,6 +8,7 @@
 #include "base64.h"
 #include "ossutil.h"
 #include "HashTable.h"
+#include "oss.h"
 
 #include <string.h>
 #include <stdio.h>
@@ -18,12 +19,10 @@
 #include <libxml/parser.h>
 #include <assert.h>
 
-
 struct MemoryStruct {
-  char *memory;
-  size_t size;
+	char *memory;
+	size_t size;
 };
-
 
 static const char* buckets =
 		"<?xml version=\"1.0\" encoding=\"UTF-8\"?>\
@@ -52,12 +51,21 @@ void test_bucket_xmls();
 
 void test_bucket_xmls2(char*);
 
+void test_get_service();
+
+void test_put_bucket();
+
+void test_get_bucket();
+
 int main() {
-	//test_base64_encode("��䦦�µm�T*Jl4�");
+//	test_base64_encode("��䦦�µm�T*Jl4�");
 //	test_localtime_gmt();
-	//test_hmac_base64();
-	test_curl();
-	//test_bucket_xmls();
+//	test_hmac_base64();
+//	test_curl();
+//	test_bucket_xmls();
+//	test_get_service();
+	test_put_bucket();
+//	test_get_bucket();
 	return 0;
 }
 
@@ -85,22 +93,22 @@ static const char* header(char* buf, char* key, char* value) {
 	return buf;
 }
 
-static size_t write_data(void *buffer, size_t size, size_t nmemb, void *userp){
-	  size_t realsize = size * nmemb;
-	  struct MemoryStruct *mem = (struct MemoryStruct *)userp;
+static size_t write_data(void *buffer, size_t size, size_t nmemb, void *userp) {
+	size_t realsize = size * nmemb;
+	struct MemoryStruct *mem = (struct MemoryStruct *) userp;
 
-	  mem->memory = realloc(mem->memory, mem->size + realsize + 1);
-	  if (mem->memory == NULL) {
-	    /* out of memory! */
-	    printf("not enough memory (realloc returned NULL)\n");
-	    exit(EXIT_FAILURE);
-	  }
+	mem->memory = realloc(mem->memory, mem->size + realsize + 1);
+	if (mem->memory == NULL ) {
+		/* out of memory! */
+		printf("not enough memory (realloc returned NULL)\n");
+		exit(EXIT_FAILURE);
+	}
 
-	  memcpy(&(mem->memory[mem->size]), buffer, realsize);
-	  mem->size += realsize;
-	  mem->memory[mem->size] = 0;
+	memcpy(&(mem->memory[mem->size]), buffer, realsize);
+	mem->size += realsize;
+	mem->memory[mem->size] = 0;
 
-	  return realsize;
+	return realsize;
 }
 
 /*
@@ -154,15 +162,15 @@ void test_curl() {
 		curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
 
 		res = curl_easy_setopt(curl, CURLOPT_HTTPHEADER, chunk);
-		curl_easy_setopt(curl,CURLOPT_WRITEFUNCTION,write_data);
-		curl_easy_setopt(curl,CURLOPT_WRITEDATA,(void*)&content);
+		curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_data);
+		curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void*)&content);
 		res = curl_easy_perform(curl);
 
 		if (res != CURLE_OK) {
 			printf("ERROR:%s\n", curl_easy_strerror(res));
 		} else {
 			test_bucket_xmls2(content.memory);
-			fprintf(stderr,"%d\n",content.size);
+			fprintf(stderr, "%d\n", content.size);
 		}
 		free(content.memory);
 		free(date);
@@ -178,11 +186,13 @@ struct Owner* getOwner(xmlNodePtr node) {
 		struct Owner* owner = (struct Owner*) malloc(sizeof(struct Owner));
 		assert(owner!=NULL);
 		while (cur) {
-			if (cur->type == XML_ELEMENT_NODE && !strcmp((char*)cur->name, "ID")) {
-				owner->id = (char*)xmlNodeGetContent(cur);
+			if (cur->type == XML_ELEMENT_NODE
+					&& !strcmp((char*) cur->name, "ID")) {
+				owner->id = (char*) xmlNodeGetContent(cur);
 			}
-			if (cur->type == XML_ELEMENT_NODE && !strcmp((char*)cur->name, "DisplayName")) {
-				owner->displayName = (char*)xmlNodeGetContent(cur);
+			if (cur->type == XML_ELEMENT_NODE
+					&& !strcmp((char*) cur->name, "DisplayName")) {
+				owner->displayName = (char*) xmlNodeGetContent(cur);
 			}
 			cur = cur->next;
 		}
@@ -190,38 +200,42 @@ struct Owner* getOwner(xmlNodePtr node) {
 	}
 	return NULL ;
 }
-struct Bucket* getBucket(xmlNodePtr node){
-	if(!strcmp((char*)node->name,"Bucket")){
+struct Bucket* getBucket(xmlNodePtr node) {
+	if (!strcmp((char*) node->name, "Bucket")) {
 		xmlNodePtr cur = node->children;
-		struct Bucket* bucket = (struct Bucket*)malloc(sizeof(struct Bucket));
+		struct Bucket* bucket = (struct Bucket*) malloc(sizeof(struct Bucket));
 		assert(bucket!=NULL);
-		while(cur){
-			if(cur->type==XML_ELEMENT_NODE&&!strcmp((char*)cur->name,"Name")){
-				bucket->name = (char*)xmlNodeGetContent(cur);
+		while (cur) {
+			if (cur->type == XML_ELEMENT_NODE
+					&& !strcmp((char*) cur->name, "Name")) {
+				bucket->name = (char*) xmlNodeGetContent(cur);
 			}
-			if(cur->type==XML_ELEMENT_NODE&&!strcmp((char*)cur->name,"CreationDate")){
-				bucket->creationDate = (char*)xmlNodeGetContent(cur);
+			if (cur->type == XML_ELEMENT_NODE
+					&& !strcmp((char*) cur->name, "CreationDate")) {
+				bucket->creationDate = (char*) xmlNodeGetContent(cur);
 			}
 			cur = cur->next;
 		}
 		return bucket;
 	}
-	return NULL;
+	return NULL ;
 }
-List getListBucket(xmlNodePtr node){
-	if(!strcmp((char*)node->name,"Buckets")){
+List getListBucket(xmlNodePtr node) {
+	if (!strcmp((char*) node->name, "Buckets")) {
 		xmlNodePtr cur = node->children;
 		List list = listInit();
-		while(cur){
-			if(cur->type==XML_ELEMENT_NODE&&!strcmp((char*)cur->name,"Bucket")){
+		while (cur) {
+			if (cur->type == XML_ELEMENT_NODE
+					&& !strcmp((char*) cur->name, "Bucket")) {
 				struct Bucket* bucket = getBucket(cur);
-				if(bucket) listAdd(list,bucket);
+				if (bucket)
+					listAdd(list, bucket);
 			}
 			cur = cur->next;
 		}
 		return list;
 	}
-	return NULL;
+	return NULL ;
 }
 void test_bucket_xmls() {
 	xmlDocPtr doc;
@@ -238,20 +252,20 @@ void test_bucket_xmls() {
 		fprintf(stderr, "%s\n", cur->name);
 		if (!strcmp((char*) cur->name, "Owner")) {
 			struct Owner* owner = getOwner(cur);
-			fprintf(stderr,"ID:%s\n",owner->id);
-			fprintf(stderr,"DisplayName:%s\n",owner->displayName);
+			fprintf(stderr, "ID:%s\n", owner->id);
+			fprintf(stderr, "DisplayName:%s\n", owner->displayName);
 			xmlFree(owner->id);
 			xmlFree(owner->displayName);
 			free(owner);
 		}
-		if (strcmp((char*)cur->name, "Buckets") == 0) {
+		if (strcmp((char*) cur->name, "Buckets") == 0) {
 			List list = getListBucket(cur);
 			List element = list->next;
-			while(element!=list){
+			while (element != list) {
 				struct Bucket* bucket = element->ptr;
-				fprintf(stderr,"name:%s\n",bucket->name);
-				fprintf(stderr,"date:%s\n",bucket->creationDate);
-				element =element->next;
+				fprintf(stderr, "name:%s\n", bucket->name);
+				fprintf(stderr, "date:%s\n", bucket->creationDate);
+				element = element->next;
 			}
 		}
 		cur = cur->next;
@@ -259,20 +273,57 @@ void test_bucket_xmls() {
 	xmlFreeDoc(doc);
 	return;
 }
-void test_bucket_xmls2(char* content){
-	struct Owner* owner = (struct Owner*)malloc(sizeof(struct Owner));
-	List list = oss_ListAllMyBucketsResult(buckets,owner);
+void test_bucket_xmls2(char* content) {
+	struct Owner* owner = (struct Owner*) malloc(sizeof(struct Owner));
+	List list = oss_ListAllMyBucketsResult(buckets, owner);
 	List node;
 	printf(owner->id);
 	free(owner->id);
 	free(owner->displayName);
 	free(owner);
-	for_each(node,list){
-		struct Bucket* bucket = (struct Bucket*)node->ptr;
-		fprintf(stderr,"%s\n",bucket->name);
+	for_each(node,list)
+	{
+		struct Bucket* bucket = (struct Bucket*) node->ptr;
+		fprintf(stderr, "%s\n", bucket->name);
 		free(bucket->name);
 		free(bucket->creationDate);
 		free(bucket);
 	}
 	listFree(list);
+}
+
+void test_get_service() {
+	OSSPtr oss = oss_init("storage.aliyun.com", "abysmn89uz488l1dfycon3qa",
+			"qfEZ+LNuGJUP/FlRw1R3aKpwiwY=");
+	List list = GetService(oss);
+	List node;
+	for_each(node,list)
+	{
+		struct Bucket* bucket = (struct Bucket*) node->ptr;
+		fprintf(stderr, "%s\n", bucket->name);
+		free(bucket->name);
+		free(bucket->creationDate);
+		free(bucket);
+	}
+	listFree(list);
+	free_ossptr(oss);
+}
+void test_put_bucket() {
+	char* bucket = "welcome2myspace";
+	OSSPtr oss = oss_init("storage.aliyun.com", "abysmn89uz488l1dfycon3qa",
+			"qfEZ+LNuGJUP/FlRw1R3aKpwiwY=");
+//	int result = PutBucket(oss,bucket);
+	int result = PutBucketACL(oss, bucket, PRIVATE);
+	printf("%d\n", result);
+	free_ossptr(oss);
+}
+
+void test_get_bucket(){
+	char* bucket = "welcome2myspace";
+	OSSPtr oss = oss_init("storage.aliyun.com", "abysmn89uz488l1dfycon3qa",
+			"qfEZ+LNuGJUP/FlRw1R3aKpwiwY=");
+	M_str buckets = GetBucket(oss,bucket);
+	fprintf(stderr,"%s\n",buckets);
+	free(buckets);
+	free_ossptr(oss);
 }

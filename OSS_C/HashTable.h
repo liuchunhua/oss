@@ -9,6 +9,7 @@
 #define HASHTABLE_H_
 
 #include <stddef.h>
+#include "List.h"
 
 #define HASH_TABLE_LEN 50
 
@@ -41,5 +42,9 @@ int hash_table_put(struct HashTable* table, char* key, void* value);
 */
 
 void* hash_table_get(struct HashTable* table,char* key);
+
+List hash_table_get_key_list(struct HashTable* table);
+
+void hash_table_free(struct HashTable* table);
 
 #endif /* HASHTABLE_H_ */

@@ -103,6 +103,47 @@ static List getListBucket(xmlNodePtr node){
 	return NULL;
 }
 
+//按字母顺序升序排列
+static void sort_list_asc(List ls){
+	List last = ls;
+	while(ls->next!=last){
+		List node = ls->next;
+		List next = node->next;
+		while(next!=last){
+			struct pair* a = (struct pair*)node->ptr;
+			struct pair* b = (struct pair*)next->ptr;
+			char* a_key = (char*)a->key;
+			char* b_key = (char*)b->key;
+			if(strcoll(a_key,b_key)>0){
+				node->prev->next = node->next;
+				node->next = next->next;
+				next->prev = node->prev;
+				node->prev = next;
+				next->next = node;
+				next = node->next;
+			}
+			if(strcoll(a_key,b_key)==0){
+				int size = strlen((char*)a->value)+strlen((char*)b->value)+2;
+				char* new_string = malloc(size);
+				strcat(new_string,(char*)a->value);
+				strcat(new_string,",");
+				strcat(new_string,(char*)b->value);
+				free(a->value);
+				a->value = (void*)new_string;
+				free(b->key);
+				free(b->value);
+				free(b);
+				listDel(next);
+				next = node->next;
+			}else{
+				node = next;
+				next = next->next;
+			}
+		}
+		last = last->prev;
+	}
+}
+
 
 M_str oss_authorizate(const char* key, const char* method,
 		struct HashTable* headers, const char* resource) {
@@ -111,8 +152,7 @@ M_str oss_authorizate(const char* key, const char* method,
 	char* content_type = (char*) hash_table_get(headers, "Content-Type");
 	assert(resource!=NULL);
 	assert(date!=NULL);
-	char buf[200];
-	memset(buf, 0x0, 200);
+	char buf[200] = {};
 	strcat(buf, method); //method
 	strcat(buf, "\n");
 	if (content_md5 != NULL )
@@ -123,7 +163,21 @@ M_str oss_authorizate(const char* key, const char* method,
 	strcat(buf, "\n");
 	strcat(buf, date);
 	strcat(buf, "\n");
+	List list = hash_table_get_key_list(headers);
+	sort_list_asc(list);
+	List node;
+	for_each(node,list){
+		struct pair* p = (struct pair*)node->ptr;
+		if(strcasestr((char*)(p->key),"x-oss-")!=NULL){
+			strcat(buf,(char*)(p->key));
+			strcat(buf,":");
+			strcat(buf,(char*)(p->value));
+			strcat(buf,"\n");
+		}
+	}
+	listFree(list);
 	strcat(buf, resource);
+	fprintf(stderr,"%s\n",buf);
 	return hmac_base64(buf, strlen(buf), key, strlen(key));
 }
 

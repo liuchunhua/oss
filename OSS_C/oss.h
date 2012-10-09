@@ -18,9 +18,11 @@ typedef struct{
 
 typedef OSS* OSSPtr;
 
+typedef enum{RW,RO,PRIVATE} ACL;
+
 OSSPtr new_ossptr();
 
-void free_ossptr(OSSPtr*);
+void free_ossptr(OSSPtr);
 
 /*
  * @description:	初始化
@@ -33,4 +35,9 @@ OSSPtr oss_init(const char* host, const char* id, const char* key);
 
 List GetService(OSSPtr);
 
+int PutBucket(OSSPtr oss, char* bucket);
+
+int PutBucketACL(OSSPtr oss, char* bucket, ACL a);
+
+char* GetBucket(OSSPtr oss,char* bucket);
 #endif /* OSS_H_ */

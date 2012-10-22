@@ -21,6 +21,7 @@ static void free_pair(struct pair* p){
 
 struct HashTable* hash_table_init() {
 	struct HashTable* hash_table = (struct HashTable*) malloc(sizeof(struct HashTable));
+	memset(hash_table,0x0,sizeof(struct HashTable));
 	hash_table->hash = strlen;
 	int i = 0;
 	for (i = 0; i < HASH_TABLE_LEN; ++i) {

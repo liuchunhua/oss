@@ -42,4 +42,5 @@ int listIsEmpty(List head);
  * 释放分配内存
  */
 void listFreeObject(List head);
+void listFreeObjectByFun(List head,void (*fun)(void*));
 #endif /* LIST_H_ */

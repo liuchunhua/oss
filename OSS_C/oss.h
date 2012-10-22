@@ -9,16 +9,40 @@
 #define OSS_H_
 
 #include "List.h"
+#include "ossutil.h"
+
+#include <stdio.h>
 
 typedef struct{
 	char* host;
 	char* access_id;
 	char* access_key;
+	char* proxy;
 } OSS;
+
 
 typedef OSS* OSSPtr;
 
 typedef enum{RW,RO,PRIVATE} ACL;
+
+
+typedef struct{
+        char *memory;
+        size_t size;
+} MemoryBlock;
+
+struct HttpResponse {
+        size_t code;
+        MemoryBlock* body;
+        MemoryBlock* header;
+};
+
+
+struct Range {
+	size_t start;
+	size_t end;
+};
+
 
 OSSPtr new_ossptr();
 
@@ -33,11 +57,33 @@ void free_ossptr(OSSPtr);
  */
 OSSPtr oss_init(const char* host, const char* id, const char* key);
 
+/*
+ * @description:    得到所有的bucket
+ * @return List<struct Bucket*>
+ */
 List GetService(OSSPtr);
 
 int PutBucket(OSSPtr oss, char* bucket);
 
 int PutBucketACL(OSSPtr oss, char* bucket, ACL a);
 
-char* GetBucket(OSSPtr oss,char* bucket);
+ACL GetBucketACL(OSSPtr oss, char* bucket);
+
+int DeleteBucket(OSSPtr oss, char* bucket);
+
+ListBucketResult* ListObject(OSSPtr oss, char* bucket,const char* prefix,unsigned int maxkeys,const char* marker,const char* delimiter);
+
+int PutObject(OSSPtr oss,char* bucket,char* objectname,char* file,struct HashTable* table);
+/*
+ * @return 文件大小
+ */
+size_t GetObject(OSSPtr oss,char* object,char* desfile,struct HashTable* table,unsigned short redownnload);
+size_t GetObjectIntoMemory(OSSPtr oss,char* object,char* buf,size_t size, off_t offset,struct HashTable* table);
+
+MemoryBlock* HeadObject(OSSPtr oss,char* object);
+
+int CopyObject(OSSPtr oss,char* source,char* des);
+
+int DeleteObject(OSSPtr oss,char* object);
+
 #endif /* OSS_H_ */

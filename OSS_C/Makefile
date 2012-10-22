@@ -1,10 +1,14 @@
 
+-include sources.mk 
 
-all:
+all:liboss.a
 	$(MAKE) -C test
-
-%.o:%.c
-	$(CC) -g -Wall -c -o $@ $<  
+liboss.a:oss.o List.o base64.o HashTable.o ossutil.o
+	ar rv  liboss.a *.o
+%.o:%.c 
+	$(CC) -g -DDEBUG -Wall -c -o $@ $<  $(CFLAGS)
 
 clean:
+	rm *.a
+	rm *.o
 	$(MAKE) -C test clean

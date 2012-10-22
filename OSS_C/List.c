@@ -66,3 +66,11 @@ void listFreeObject(List head){
 		node = node->next;
 	}
 }
+
+void listFreeObjectByFun(List head,void (*fun)(void*)){
+        List node = head->next;
+        while(node&&node!=head){
+                fun(node->ptr);
+                node = node->next;
+        }
+}

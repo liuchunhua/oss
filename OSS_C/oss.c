@@ -7,6 +7,7 @@
 
 #include "oss.h"
 #include "ossutil.h"
+#include "String.h"
 
 #include <string.h>
 #include <stdio.h>
@@ -20,6 +21,18 @@
 #ifdef DEBUG
 #include <syslog.h>
 #endif
+
+struct HttpResponse {
+        size_t code;
+        MemoryBlock* body;
+        MemoryBlock* header;
+};
+
+
+struct Range {
+        size_t start;
+        size_t end;
+};
 
 static void
 free_http_response(struct HttpResponse* response)
@@ -521,6 +534,40 @@ http_download_memory(OSSPtr oss, const char* method, const char* requestresource
   return NULL ;
 }
 
+static OSSObject*
+oss_GetObject(const char* httpheader){
+  char *str1, *str2, *token, *subtoken;
+   char *savePtr1, *savePtr2;
+   OSSObject* object = (OSSObject*)malloc(sizeof(OSSObject));
+   memset(object,0x0,sizeof(object));
+   char* content_length;
+   size_t content_size;
+   for (str1 = httpheader;; str1 = NULL )
+       {
+         token = strtok_r(str1, "\n", &savePtr1);
+         if (token == NULL )
+           break;
+         int index = indexOf(token,':');
+         String* key = substring(token,0,index-1);
+         String*value = substring(token,index+1,strlen(token));
+         if(strcasecmp(key->str,"Last-Modified")==0)
+           object->mtime = StrGmtToLocaltime(value->str);
+         if(strcasecmp(key->str,"Content-Type")==0)
+           object->minetype = strdup(value->str);
+         if(strcasecmp(key->str,"Content-Length")==0)
+           object->size = atol(value->str);
+         if(strcasecmp(key->str,"ETag")==0)
+           object->etag = strdup(value->str);
+         free_string(key);
+         free_string(value);
+       }
+     return object;
+}
+
+/*
+ * public method
+ */
+
 
 OSSPtr
 new_ossptr()
@@ -852,22 +899,20 @@ GetObjectIntoMemory(OSSPtr oss, char* object, char* buf, size_t size,
   free_http_response(response);
   return size;
 }
-MemoryBlock*
+OSSObject*
 HeadObject(OSSPtr oss, char* object)
 {
   struct HttpResponse* response;
   char* method = "HEAD";
-  MemoryBlock* result = (MemoryBlock*) malloc(sizeof(MemoryBlock));
-  result->size = 0;
   response = http_request(oss, method, object, NULL );
+  OSSObject* ossobject;
   if (response && response->header)
     {
-      result->memory = strndup(response->header->memory,
-          response->header->size);
-      result->size = response->header->size;
+     ossobject =  oss_GetObject(response->header->memory);
+     ossobject->name = strdup(object);
     }
   free_http_response(response);
-  return result;
+  return ossobject;
 }
 
 int

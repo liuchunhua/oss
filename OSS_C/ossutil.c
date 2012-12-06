@@ -10,6 +10,7 @@
 #include "HashTable.h"
 #include "List.h"
 
+
 #include <time.h>
 #include <string.h>
 #include <openssl/hmac.h>
@@ -31,7 +32,33 @@ localtime_gmt()
   strftime(oss_buf, OSS_LEN, OSS_TIME_FORMAT, tm_time);
   return strdup(oss_buf);
 }
-
+time_t
+StrGmtToLocaltime(const char* s)
+{
+  int i=0;
+  char week[4]={};
+  char month[4]={};
+  char* weeks[7] = {"Sun","Mon","Tue","Wed","Thu","Fri","Sat"};
+  char* monthes[12] = {"Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"};
+  struct tm t;
+  memset(&t,0x0,sizeof(struct tm));
+  //Wed, 05 Dec 2012 14:26:10 GMT
+  sscanf(s,"%[^,],%d %s %d %d:%d:%d GMT",week,&(t.tm_mday),month,&(t.tm_year),&(t.tm_hour),&(t.tm_min),&(t.tm_sec));
+  t.tm_year -= 1900;
+  for(i=0;i<7;i++){
+      if(strcmp(week,weeks[i])==0)
+        break;
+  }
+  if(i!=7)
+    t.tm_wday = i;
+  for(i=0;i<12;i++){
+      if(strcmp(month,monthes[i])==0)
+        break;
+  }
+  if(i!=12)
+    t.tm_mon = i;
+  return mktime(&t)-timezone;
+}
 /*
  * @description: 加密，编码
  * @param:	string 需要加密的字符串

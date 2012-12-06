@@ -25,23 +25,20 @@ typedef OSS* OSSPtr;
 
 typedef enum{RW,RO,PRIVATE} ACL;
 
-
+typedef struct OSSObject OSSObject;
+struct OSSObject{
+  char* name;
+  char* minetype;
+  char* etag;
+  time_t mtime;
+  size_t size;
+};
 typedef struct{
         char *memory;
         size_t size;
 } MemoryBlock;
 
-struct HttpResponse {
-        size_t code;
-        MemoryBlock* body;
-        MemoryBlock* header;
-};
 
-
-struct Range {
-	size_t start;
-	size_t end;
-};
 
 
 OSSPtr new_ossptr();
@@ -80,7 +77,7 @@ int PutObject(OSSPtr oss,char* bucket,char* objectname,char* file,struct HashTab
 size_t GetObject(OSSPtr oss,char* object,char* desfile,struct HashTable* table,unsigned short redownnload);
 size_t GetObjectIntoMemory(OSSPtr oss,char* object,char* buf,size_t size, off_t offset,struct HashTable* table);
 
-MemoryBlock* HeadObject(OSSPtr oss,char* object);
+OSSObject* HeadObject(OSSPtr oss,char* object);
 
 int CopyObject(OSSPtr oss,char* source,char* des);
 

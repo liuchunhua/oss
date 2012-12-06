@@ -48,6 +48,8 @@ test_base64_encode(const char*);
 void
 test_localtime_gmt();
 void
+test_strtotime();
+void
 test_hmac_base64();
 void
 test_curl();
@@ -95,9 +97,10 @@ main()
 //	test_listobject();
 //	test_GetBucketACL();
 //	test_PutObject();
-      test_GetObject();
+//      test_GetObject();
 //	test_HeadObject();
 //        test_CopyObject();
+  test_strtotime();
   return 0;
 }
 
@@ -112,7 +115,18 @@ test_localtime_gmt()
 {
   printf("%s\n", localtime_gmt());
 }
-
+void
+test_strtotime(){
+  char* s = "Wed, 05 Dec 2012 14:26:10 GMT";
+  printf("orign time : %s\n",s);
+  time_t t = StrGmtToLocaltime(s);
+//  printf("long time: %ld",t);
+  printf("%s\n",ctime(&t));
+  time(&t);
+  printf("%s\n",ctime(&t));
+  gmtime(&t);
+  printf("%s\n",asctime(gmtime(&t)));
+}
 void
 test_hmac_base64()
 {
@@ -435,7 +449,7 @@ test_PutObject()
   char* file = "/home/lch/oss.test.txt";
   struct HashTable* table = hash_table_init();
   hash_table_put(table, "Content-Type", "text/html");
-  PutObject(oss, bucket, "oss_test.txt", file, table);
+  PutObject(oss, bucket, "oss/oss_test.txt", file, table);
   hash_table_free(table);
 }
 
@@ -452,8 +466,7 @@ test_HeadObject()
 {
   OSSPtr oss = oss_init("storage.aliyun.com", "abysmn89uz488l1dfycon3qa",
       "qfEZ+LNuGJUP/FlRw1R3aKpwiwY=");
-  char* file = "/home/lch/oss_test.txt";
-  HeadObject(oss, "/welcome2myspace/oss_test.txt");
+  HeadObject(oss, "/welcome2myspace/oss/oss_test.txt");
 }
 
 void

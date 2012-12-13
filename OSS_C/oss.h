@@ -45,6 +45,8 @@ OSSPtr new_ossptr();
 
 void free_ossptr(OSSPtr);
 
+void free_ossobject(OSSObject*);
+
 /*
  * @description:	初始化
  * @param:	host
@@ -68,16 +70,16 @@ ACL GetBucketACL(OSSPtr oss, char* bucket);
 
 int DeleteBucket(OSSPtr oss, char* bucket);
 
-ListBucketResult* ListObject(OSSPtr oss, char* bucket,const char* prefix,unsigned int maxkeys,const char* marker,const char* delimiter);
+ListBucketResult* ListObject(OSSPtr oss, const char* bucket,const char* prefix,unsigned int maxkeys,const char* marker,const char* delimiter);
 
 int PutObject(OSSPtr oss,char* bucket,char* objectname,char* file,struct HashTable* table);
 /*
  * @return 文件大小
  */
 size_t GetObject(OSSPtr oss,char* object,char* desfile,struct HashTable* table,unsigned short redownnload);
-size_t GetObjectIntoMemory(OSSPtr oss,char* object,char* buf,size_t size, off_t offset,struct HashTable* table);
+size_t GetObjectIntoMemory(OSSPtr oss,const char* object,char* buf,size_t size, off_t offset,struct HashTable* table);
 
-OSSObject* HeadObject(OSSPtr oss,char* object);
+OSSObject* HeadObject(OSSPtr oss,const char* object);
 
 int CopyObject(OSSPtr oss,char* source,char* des);
 

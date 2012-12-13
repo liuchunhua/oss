@@ -32,10 +32,12 @@ struct pair{
 */
 struct HashTable*  hash_table_init();
 
+struct HashTable*  hash_table_init_size(unsigned int size );
+
 /*
 * 添加key-value
 */
-int hash_table_put(struct HashTable* table, char* key, void* value);
+int hash_table_put(struct HashTable* table, const char* key, void* value);
 
 /*
 * 获得key-value

@@ -19,7 +19,8 @@ static void free_pair(struct pair* p){
 	}
 }
 
-struct HashTable* hash_table_init() {
+struct HashTable* hash_table_init_size(unsigned int size) {
+        if(size < HASH_TABLE_LEN) size = HASH_TABLE_LEN;
 	struct HashTable* hash_table = (struct HashTable*) malloc(sizeof(struct HashTable));
 	memset(hash_table,0x0,sizeof(struct HashTable));
 	hash_table->hash = strlen;
@@ -30,7 +31,9 @@ struct HashTable* hash_table_init() {
 	}
 	return hash_table;
 }
-
+struct HashTable* hash_table_init(){
+  return hash_table_init_size(0);
+}
 int hash_table_put(struct HashTable* table, char* key, void* value) {
 	assert(table->hash!=NULL);
 	int v = (table->hash)(key);

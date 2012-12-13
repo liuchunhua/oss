@@ -22,16 +22,17 @@
 #include <syslog.h>
 #endif
 
-struct HttpResponse {
-        size_t code;
-        MemoryBlock* body;
-        MemoryBlock* header;
+struct HttpResponse
+{
+  size_t code;
+  MemoryBlock* body;
+  MemoryBlock* header;
 };
 
-
-struct Range {
-        size_t start;
-        size_t end;
+struct Range
+{
+  size_t start;
+  size_t end;
 };
 
 static void
@@ -443,15 +444,17 @@ http_download(OSSPtr oss, const char* method, const char* requestresource,
 }
 
 static struct HttpResponse*
-http_download_memory(OSSPtr oss, const char* method, const char* requestresource,
-    char* buf,size_t size,off_t offset, struct HashTable* headers)
+http_download_memory(OSSPtr oss, const char* method,
+    const char* requestresource, char* buf, size_t size, off_t offset,
+    struct HashTable* headers)
 {
-  if(size==0) return NULL;
+  if (size == 0)
+    return NULL ;
   CURL *curl;
   CURLcode res;
   struct HashTable* table;
-  MemoryBlock* block = (MemoryBlock*)malloc(sizeof(MemoryBlock));
-  memset(block,0x0,sizeof(MemoryBlock));
+  MemoryBlock* block = (MemoryBlock*) malloc(sizeof(MemoryBlock));
+  memset(block, 0x0, sizeof(MemoryBlock));
   block->memory = buf;
   block->size = 0;
   char* ACCESS_KEY = oss->access_key;
@@ -487,10 +490,11 @@ http_download_memory(OSSPtr oss, const char* method, const char* requestresource
   if (curl)
     {
       struct curl_slist *chunk = NULL;
-      sprintf(x_y, "bytes=%d-%d", offset, offset+size-1);
+      sprintf(x_y, "bytes=%d-%d", offset, offset + size - 1);
 //      chunk = curl_slist_append(chunk, header(buf, "Date", date));
       chunk = curl_slist_append(chunk, header(buffer, "Range", x_y));
-      chunk = curl_slist_append(chunk, header(buffer, authorhead, authorization));
+      chunk = curl_slist_append(chunk,
+          header(buffer, authorhead, authorization));
       curl_slist_append(chunk, header(buffer, "Accept", ""));
 
       List list = hash_table_get_key_list(table);
@@ -535,39 +539,41 @@ http_download_memory(OSSPtr oss, const char* method, const char* requestresource
 }
 
 static OSSObject*
-oss_GetObject(const char* httpheader){
+oss_GetObject(const char* httpheader)
+{
   char *str1, *str2, *token, *subtoken;
-   char *savePtr1, *savePtr2;
-   OSSObject* object = (OSSObject*)malloc(sizeof(OSSObject));
-   memset(object,0x0,sizeof(object));
-   char* content_length;
-   size_t content_size;
-   for (str1 = httpheader;; str1 = NULL )
-       {
-         token = strtok_r(str1, "\n", &savePtr1);
-         if (token == NULL )
-           break;
-         int index = indexOf(token,':');
-         String* key = substring(token,0,index-1);
-         String*value = substring(token,index+1,strlen(token));
-         if(strcasecmp(key->str,"Last-Modified")==0)
-           object->mtime = StrGmtToLocaltime(value->str);
-         if(strcasecmp(key->str,"Content-Type")==0)
-           object->minetype = strdup(value->str);
-         if(strcasecmp(key->str,"Content-Length")==0)
-           object->size = atol(value->str);
-         if(strcasecmp(key->str,"ETag")==0)
-           object->etag = strdup(value->str);
-         free_string(key);
-         free_string(value);
-       }
-     return object;
+  char *savePtr1, *savePtr2;
+  OSSObject* object = (OSSObject*) malloc(sizeof(OSSObject));
+  memset(object, 0x0, sizeof(object));
+  char* content_length;
+  size_t content_size;
+  for (str1 = httpheader;; str1 = NULL )
+    {
+      token = strtok_r(str1, "\n", &savePtr1);
+      if (token == NULL )
+        break;
+      int index = indexOf(token, ':');
+      if (index == -1)
+        continue;
+      String* key = substring(token, 0, index - 1);
+      String*value = substring(token, index + 1, strlen(token));
+      if (strcasecmp(key->str, "Last-Modified") == 0)
+        object->mtime = StrGmtToLocaltime(value->str);
+      if (strcasecmp(key->str, "Content-Type") == 0)
+        object->minetype = strdup(value->str);
+      if (strcasecmp(key->str, "Content-Length") == 0)
+        object->size = atol(value->str);
+      if (strcasecmp(key->str, "ETag") == 0)
+        object->etag = strdup(value->str);
+      free_string(key);
+      free_string(value);
+    }
+  return object;
 }
 
 /*
  * public method
  */
-
 
 OSSPtr
 new_ossptr()
@@ -594,6 +600,18 @@ free_ossptr(OSSPtr oss)
     free(oss);
 }
 
+void
+free_ossobject(OSSObject* obj)
+{
+  if (obj)
+    {
+      free(obj->etag);
+      free(obj->minetype);
+      free(obj->name);
+      free(obj);
+    }
+}
+
 OSSPtr
 oss_init(const char* host, const char* id, const char* key)
 {
@@ -608,25 +626,16 @@ oss_init(const char* host, const char* id, const char* key)
 List
 GetService(OSSPtr oss)
 {
-#ifdef DEBUG
-  syslog(LOG_MAKEPRI(LOG_USER,LOG_WARNING), "enter oss\n");
-#endif
   struct HttpResponse* response;
   char* method = "GET";
   char* resource = "/";
   response = http_request(oss, method, resource, NULL );
-#ifdef DEBUG
-  syslog(LOG_MAKEPRI(LOG_USER,LOG_WARNING), "response\n");
-#endif
   if (response && response->code == 200)
     {
       List list = oss_ListAllMyBucketsResult(response->body->memory, NULL );
       free_http_response(response);
       return list;
     }
-#ifdef DEBUG
-  syslog(LOG_MAKEPRI(LOG_USER,LOG_WARNING), "return\n");
-#endif
   if (response)
     free_http_response(response);
   return NULL ;
@@ -696,7 +705,7 @@ PutBucketACL(OSSPtr oss, char* bucket, ACL a)
 }
 
 ListBucketResult*
-ListObject(OSSPtr oss, char* bucket, const char* prefix, unsigned int maxkeys,
+ListObject(OSSPtr oss,const char* bucket, const char* prefix, unsigned int maxkeys,
     const char* marker, const char* delimiter)
 {
   char* method = "GET";
@@ -890,26 +899,35 @@ GetObject(OSSPtr oss, char* object, char* desfile, struct HashTable* table,
   return content_size;
 }
 size_t
-GetObjectIntoMemory(OSSPtr oss, char* object, char* buf, size_t size,
+GetObjectIntoMemory(OSSPtr oss, const char* object, char* buf, size_t size,
     off_t offset, struct HashTable* table)
 {
   struct HttpResponse* response;
   char* method = "GET";
-  response = http_download_memory(oss,method,object,buf,size,offset,NULL);
+  response = http_download_memory(oss, method, object, buf, size, offset,
+      NULL );
   free_http_response(response);
   return size;
 }
 OSSObject*
-HeadObject(OSSPtr oss, char* object)
+HeadObject(OSSPtr oss, const char* object)
 {
   struct HttpResponse* response;
   char* method = "HEAD";
   response = http_request(oss, method, object, NULL );
   OSSObject* ossobject;
-  if (response && response->header)
+  if (response && response->header && response->code == 200)
     {
-     ossobject =  oss_GetObject(response->header->memory);
-     ossobject->name = strdup(object);
+      ossobject = oss_GetObject(response->header->memory);
+      ossobject->name = strdup(object);
+    }
+  else
+    {
+#ifdef DEBUG
+      syslog(LOG_MAKEPRI(LOG_USER,LOG_WARNING), "response code:%d",response&&response->code);
+#endif
+      free_http_response(response);
+      return NULL ;
     }
   free_http_response(response);
   return ossobject;

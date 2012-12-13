@@ -10,7 +10,8 @@
 
 typedef struct String String;
 
-struct String{
+struct String
+{
   char* str;
   size_t length;
 };
@@ -18,12 +19,25 @@ struct String{
 /*
  *return the position of the character in the String,not found return -1;
  */
+String*
+new_string();
+void
+free_string(String* s);
+int
+indexOf(const char* s, int c);
 
-int indexOf(const char* s,int c);
+/*from the end to start ,firest position of the 'c'*/
+int
+lastIndexOf(const char* s, int c);
+
 /*
  * String between 'start' and 'end'(include)
  */
-String* substring(const char* s,int start, int end);
+char*
+substring(const char* s, int start, int end);
 
+char*
+concat(char* s,...);
 
 #endif /* STRING_H_ */
+/*concat all string*/

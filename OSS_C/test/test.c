@@ -98,9 +98,9 @@ main()
 //	test_GetBucketACL();
 //	test_PutObject();
 //      test_GetObject();
-//	test_HeadObject();
+	test_HeadObject();
 //        test_CopyObject();
-  test_strtotime();
+//  test_strtotime();
   return 0;
 }
 
@@ -466,7 +466,13 @@ test_HeadObject()
 {
   OSSPtr oss = oss_init("storage.aliyun.com", "abysmn89uz488l1dfycon3qa",
       "qfEZ+LNuGJUP/FlRw1R3aKpwiwY=");
-  HeadObject(oss, "/welcome2myspace/oss/oss_test.txt");
+  OSSObject* obj = HeadObject(oss, "/welcome2myspace/oss/oss_test.txt");
+  if(obj){
+      printf("name:%s,content-type:%s,content-length:%d",obj->name,obj->minetype,obj->size);
+  }
+  else{
+      printf("can't found");
+  }
 }
 
 void

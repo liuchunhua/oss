@@ -9,6 +9,6 @@ liboss.a:oss.o List.o base64.o HashTable.o ossutil.o String.o
 	$(CC) -g -DDEBUG -Wall -c -o $@ $<  $(CFLAGS)
 
 clean:
-	rm *.a
-	rm *.o
+	rm -f *.a
+	rm -f *.o
 	$(MAKE) -C test clean

@@ -34,7 +34,7 @@ struct HashTable* hash_table_init_size(unsigned int size) {
 struct HashTable* hash_table_init(){
   return hash_table_init_size(0);
 }
-int hash_table_put(struct HashTable* table, char* key, void* value) {
+int hash_table_put(struct HashTable* table,const char* key, void* value) {
 	assert(table->hash!=NULL);
 	int v = (table->hash)(key);
 	if (NULL != table->elements[v]) {

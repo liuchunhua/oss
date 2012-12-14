@@ -12,4 +12,4 @@ test:$(OBJ) test.o
 	$(CC) -g -Wall -c -o $@ $<  $(CFLAGS)
 	
 clean:
-	rm $(OBJ) test test.o
+	rm test test.o

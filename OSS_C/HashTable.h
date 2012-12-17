@@ -43,7 +43,7 @@ int hash_table_put(struct HashTable* table, const char* key, void* value);
 * 获得key-value
 */
 
-void* hash_table_get(struct HashTable* table,char* key);
+void* hash_table_get(struct HashTable* table,const char* key);
 
 List hash_table_get_key_list(struct HashTable* table);
 

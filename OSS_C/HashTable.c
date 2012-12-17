@@ -56,7 +56,7 @@ int hash_table_put(struct HashTable* table,const char* key, void* value) {
 	((struct pair*) (table->elements[v]))->value = value;
 	return 0;
 }
-void* hash_table_get(struct HashTable* table, char* key) {
+void* hash_table_get(struct HashTable* table,const char* key) {
 	int v = table->hash(key);
 	if (table->keys[v] == NONE)
 		return NULL ;

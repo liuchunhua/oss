@@ -9,7 +9,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
-
 #include "cache.h"
 #include "HashTable.h"
 #include "List.h"
@@ -47,7 +46,7 @@ getNodeFromParent(oss_node* parent,char* path){
 }
 
 static oss_node*
-get_node(char* path);
+make_node(char* path);
 /*public function*/
 void
 oss_init_cache(const char* cache)
@@ -175,6 +174,7 @@ oss_node*
 oss_get_cache(const char* path)
 {
   oss_node* node = (oss_node*)hash_table_get(TABLE,path);
+  if(node) return node;
   if(!node){
       if(strlen(strrchr(path,'/'))==1){
           char* tmp = substring(path,0,strlen(path)-2);
@@ -193,7 +193,6 @@ oss_get_cache(const char* path)
       }
   }
   if(!node){
-      //TODO:get from server
       OSSObject* object = HeadObject(oss,path);
       if(!object)
         return NULL;
@@ -205,8 +204,8 @@ oss_get_cache(const char* path)
       node->mime_type = strdup(object->minetype);
       node->mtime = object->mtime;
       node->size = object->size;
+      hash_table_put(TABLE,path,node);
   }
-  hash_table_put(TABLE,path,node);
   return node;
 }
 static void
@@ -265,7 +264,7 @@ add_node(oss_node* parent, ListBucketResult* result)
     }
 }
 static oss_node*
-get_node(char* path){
+make_node(char* path){
   char *str1,*token,*saveptr;
   char *tmp = strdup(path);
   for(str1 = tmp;;str1=NULL){

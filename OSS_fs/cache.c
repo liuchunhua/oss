@@ -35,14 +35,16 @@ static void
 add_node(oss_node* parent, ListBucketResult* result);
 
 static inline oss_node*
-getNodeFromParent(oss_node* parent,char* path){
+getNodeFromParent(oss_node* parent, char* path)
+{
   oss_node* node = parent->childs;
-  while(node){
-      if(strcmp(path,node->path)==0)
+  while (node)
+    {
+      if (strcmp(path, node->path) == 0)
         return node;
       node = node->next;
-  }
-  return NULL;
+    }
+  return NULL ;
 }
 
 static oss_node*
@@ -170,42 +172,36 @@ oss_reatattr(oss_node* node, struct stat* st)
       st->st_size = node->size;
     }
 }
+
 oss_node*
 oss_get_cache(const char* path)
 {
-  oss_node* node = (oss_node*)hash_table_get(TABLE,path);
-  if(node) return node;
-  if(!node){
-      if(strlen(strrchr(path,'/'))==1){
-          char* tmp = substring(path,0,strlen(path)-2);
-          int index = lastIndexOf(tmp,'/');
+  oss_node* node = (oss_node*) hash_table_get(TABLE, path);
+  if (node)
+    return node;
+  if (!node)
+    {
+      if (strlen(strrchr(path, '/')) == 1)
+        { //Dir
+          char* tmp = substring(path, 0, strlen(path) - 2);
+          int index = lastIndexOf(tmp, '/');
           free(tmp);
-          char* parent = substring(path,0,index);
-          oss_node* parent_node = hash_table_get(TABLE,parent);
+          char* parent = substring(path, 0, index);
+          oss_node* parent_node = hash_table_get(TABLE, parent);
           free(parent);
-          if(parent_node)
-            node = getNodeFromParent(parent_node,path);
-          if(!node){
-              node = new_node(NULL,S_IFDIR|S_IRWXU);
-              node->path = strdup(path);
-              node->name = substring(path,index,strlen(path)-1);
-          }
-      }
-  }
-  if(!node){
-      OSSObject* object = HeadObject(oss,path);
-      if(!object)
-        return NULL;
-      node = new_node(NULL,S_IFREG | S_IRWXU | S_IRGRP | S_IROTH);
-      node->name = substring(object->name,lastIndexOf(object->name, '/'),
-          strlen(object->name) - 1);
-      node->path = strdup(path);
-      node->etag = strdup(object->etag);
-      node->mime_type = strdup(object->minetype);
-      node->mtime = object->mtime;
-      node->size = object->size;
-      hash_table_put(TABLE,path,node);
-  }
+          if (parent_node)
+            node = getNodeFromParent(parent_node, path);
+          if (!node)
+            {
+              node = make_node(path);
+            }
+        }
+      else
+        { //FILE
+          node = make_node(path);
+        }
+    }
+
   return node;
 }
 static void
@@ -238,11 +234,21 @@ add_node(oss_node* parent, ListBucketResult* result)
   List object_node;
   for_each(object_node,result->contents)
     {
-      oss_node* node = new_node(parent, S_IFREG | S_IRWXU | S_IRGRP | S_IROTH);
       Contents* content = (Contents*) object_node->ptr;
-      node->name = substring(content->key, lastIndexOf(content->key, '/'),
+      char* name = ubstring(content->key, lastIndexOf(content->key, '/'),
           strlen(content->key) - 1);
-      node->path = concat(parent->path, node->name);
+      char* path = concat(parent->path, name);
+      oss_node* cache = hash_table_get(TABLE, path);
+      if (cache)
+        {
+          free(name);
+          free(path);
+          continue;
+        }
+      oss_node* node = new_node(parent, S_IFREG | S_IRWXU | S_IRGRP | S_IROTH);
+
+      node->name = name;
+      node->path = path;
       node->etag = strdup(content->etag);
       node->mime_type = strdup(content->type);
       node->size = atol(content->size);
@@ -253,24 +259,72 @@ add_node(oss_node* parent, ListBucketResult* result)
   List dir_node;
   for_each(dir_node,result->commonprefixes)
     {
+      char* dir = (char*) dir_node->ptr;
+      dir = substring(dir, 0, strlen(dir) - 2);
+      char* name = substring(dir, lastIndexOf(dir, '/'), strlen(dir) - 1);
+      char* path = concat(parent->path, name, "/");
+      oss_node* cache = hash_table_get(TABLE, path);
+      if (cache)
+        {
+          free(name);
+          free(path);
+          continue;
+        }
       oss_node* node =
           new_node(parent,
               S_IFDIR | S_IRWXU | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH);
       char* dir = (char*) dir_node->ptr;
       dir = substring(dir, 0, strlen(dir) - 2);
-      node->name = substring(dir,lastIndexOf(dir, '/'), strlen(dir) - 1);
+      node->name = name;
       free(dir);
-      node->path = concat(parent->path, node->name, "/");
+      node->path = path;
     }
 }
+//TODO find parent node;
 static oss_node*
-make_node(char* path){
-  char *str1,*token,*saveptr;
-  char *tmp = strdup(path);
-  for(str1 = tmp;;str1=NULL){
-      token = strtok_r(str1,"/",&saveptr);
-      if(token==NULL)
-        break;
-  }
-  free(tmp);
+make_node(char* path)
+{
+//  char *str1, *token, *saveptr;
+//  char *tmp = strdup(path);
+//  for (str1 = tmp;; str1 = NULL )
+//    {
+//      token = strtok_r(str1, "/", &saveptr);
+//      if (token == NULL )
+//        break;
+//    }
+//  free(tmp);
+  int lastSlash = lastIndexOf(path, '/');
+  mode_t mode;
+  if (lastSlash == strlen(path) - 1)
+    {
+      mode = S_IFDIR | S_IRWXU | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH;
+      char* bucket = substring(path, 0, indexOf(path + 1, '/'));
+      char* prefix = strchr(path + 1, '/');
+      ListBucketResult* result = ListObject(oss, bucket, prefix, 0, NULL, "/");
+      if (result)
+        {
+          oss_node* dir = new_node(NULL, mode);
+          hash_table_put(TABLE, path, (void*) dir);
+          add_node(dir, result);
+          return dir;
+        }
+    }
+  else
+    {
+      mode = S_IFREG | S_IRWXU | S_IRGRP | S_IROTH;
+      OSSObject* object = HeadObject(oss, path);
+      if (!object)
+        return NULL ;
+      oss_node* node = new_node(NULL, mode);
+      node->name = substring(object->name, lastIndexOf(object->name, '/'),
+          strlen(object->name) - 1);
+      node->path = strdup(path);
+      node->etag = strdup(object->etag);
+      node->mime_type = strdup(object->minetype);
+      node->mtime = object->mtime;
+      node->size = object->size;
+      hash_table_put(TABLE, path, node);
+      return node;
+    }
+  return NULL ;
 }

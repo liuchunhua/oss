@@ -9,6 +9,7 @@
 #define CACHE_H_
 
 #include <fcntl.h>
+#include <time.h>
 
 #define OSS_MASK  (S_IRWXU|S_IRWXG|S_IRWXO|S_ISUID|S_ISGID|S_ISVTX)
 

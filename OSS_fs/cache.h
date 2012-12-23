@@ -95,4 +95,9 @@ oss_reatattr(oss_node* node,struct stat* stat);
 /*get oss_node from path*/
 oss_node*
 oss_get_cache(const char* path);
+int
+oss_open_node(const char* path,int flags);
+
+void
+log_msg(const char* format,...);
 #endif /* CACHE_H_ */

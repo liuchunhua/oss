@@ -9,6 +9,12 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <syslog.h>
+#include <errno.h>
+#include <sys/types.h>
+#include <fcntl.h>
+#include <unistd.h>
+
 #include "cache.h"
 #include "HashTable.h"
 #include "List.h"
@@ -22,8 +28,8 @@ uid_t uid;
 gid_t gid;
 OSSPtr oss;
 List buckets;
-mode_t default_dir_mask = S_IWGRP | S_IWOTH;
-mode_t default_file_mask = S_IWGRP | S_IXGRP | S_IWOTH | S_IXOTH;
+mode_t default_dir = S_IFDIR | S_IRWXU | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH;
+mode_t default_file = S_IFREG | S_IRWXU | S_IRGRP | S_IROTH;
 /*private function*/
 static oss_node*
 new_node(oss_node* parent, mode_t mode);
@@ -46,7 +52,8 @@ getNodeFromParent(oss_node* parent, char* path)
     }
   return NULL ;
 }
-
+static oss_node*
+get_parent_node(char* path);
 static oss_node*
 make_node(char* path);
 /*public function*/
@@ -71,13 +78,10 @@ oss_init_cache(const char* cache)
 
   TABLE = hash_table_init_size(OSS_TABLE_SIZE);
   node_changed = listInit();
-  buckets = listInit();
   oss = oss_init("storage.aliyun.com", "abysmn89uz488l1dfycon3qa",
       "qfEZ+LNuGJUP/FlRw1R3aKpwiwY=");
-  listAdd(buckets, strdup("welcome2myspace"));
-  listAdd(buckets, strdup("liuchunhua"));
-  oss_node* root =
-      new_node(NULL, S_IFDIR | S_IRWXU | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH);
+  buckets = GetService(oss);
+  oss_node* root = new_node(NULL, default_dir);
   root->name = strdup("/");
   root->path = strdup("/");
   root->cache_path = strdup(cache_dir);
@@ -138,12 +142,12 @@ new_node(oss_node *parent, mode_t mode)
   node->lock_expire;
   if (S_ISDIR(mode))
     {
-      node->mode = mode & ~default_dir_mask;
+      node->mode = mode;
       node->nref = 2;
     }
   else
     {
-      node->mode = mode & ~default_file_mask;
+      node->mode = mode;
       node->nref = 1;
     }
   node->dirty = 0;
@@ -238,14 +242,20 @@ add_node(oss_node* parent, ListBucketResult* result)
       char* name = ubstring(content->key, lastIndexOf(content->key, '/'),
           strlen(content->key) - 1);
       char* path = concat(parent->path, name);
-      oss_node* cache = hash_table_get(TABLE, path);
+      oss_node* cache = oss_get_cache(path);
       if (cache)
         {
+          if (!cache->parent)
+            {
+              cache->parent = parent;
+              cache->next = parent->childs;
+              parent->childs = cache;
+            }
           free(name);
           free(path);
           continue;
         }
-      oss_node* node = new_node(parent, S_IFREG | S_IRWXU | S_IRGRP | S_IROTH);
+      oss_node* node = new_node(parent, default_file);
 
       node->name = name;
       node->path = path;
@@ -255,6 +265,8 @@ add_node(oss_node* parent, ListBucketResult* result)
       node->mtime = StrGmtToLocaltime(content->lastmodified);
       node->utime = node->mtime;
       node->smtime = node->mtime;
+      free(name);
+      free(path);
     }
   List dir_node;
   for_each(dir_node,result->commonprefixes)
@@ -263,24 +275,64 @@ add_node(oss_node* parent, ListBucketResult* result)
       dir = substring(dir, 0, strlen(dir) - 2);
       char* name = substring(dir, lastIndexOf(dir, '/'), strlen(dir) - 1);
       char* path = concat(parent->path, name, "/");
-      oss_node* cache = hash_table_get(TABLE, path);
+      oss_node* cache = oss_get_cache(path);
       if (cache)
         {
           free(name);
           free(path);
           continue;
         }
-      oss_node* node =
-          new_node(parent,
-              S_IFDIR | S_IRWXU | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH);
+      oss_node* node = new_node(parent, default_dir);
       char* dir = (char*) dir_node->ptr;
       dir = substring(dir, 0, strlen(dir) - 2);
       node->name = name;
       free(dir);
       node->path = path;
+      hash_table_put(TABLE, path, node); //for alone node to find parent
+      free(name);
+      free(path);
     }
 }
-//TODO find parent node;
+
+int
+oss_open_node(const char* path, int flags)
+{
+  int fd;
+  oss_node* node = oss_get_cache(path);
+  if (!node)
+    return ENOENT;
+  if (!node->cache_path)
+    {
+      node->cache_path = concat(cache_dir, "oss_XXXXXX");
+      fd = mkstemp(node->cache_path);
+      log_msg("create file %s\n", node->cache_path);
+      chmod(node->cache_path, node->mode);
+      close(fd);
+      GetObject(oss, node->path, node->cache_path, NULL, 0);
+    }
+  else
+    {
+      fd = open(node->cache_path, flags);
+    }
+  struct oss_handle* handle = (struct oss_handle*) malloc(
+      sizeof(struct oss_handle));
+  handle->fd = fd;
+  handle->uid = uid;
+  if (node->handles)
+    handle->next = node->handles;
+  node->handles = handle->next;
+  return fd;
+}
+void
+log_msg(const char* format, ...)
+{
+  va_list sp;
+  va_start(sp, format);
+
+  vsyslog(LOG_MAKEPRI(LOG_USER,LOG_DEBUG), format, sp);
+}
+/*private function implement*/
+
 static oss_node*
 make_node(char* path)
 {
@@ -297,13 +349,15 @@ make_node(char* path)
   mode_t mode;
   if (lastSlash == strlen(path) - 1)
     {
-      mode = S_IFDIR | S_IRWXU | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH;
+      mode = default_dir;
       char* bucket = substring(path, 0, indexOf(path + 1, '/'));
       char* prefix = strchr(path + 1, '/');
       ListBucketResult* result = ListObject(oss, bucket, prefix, 0, NULL, "/");
       if (result)
         {
-          oss_node* dir = new_node(NULL, mode);
+          oss_node* parent = get_parent_node(path);
+          oss_node* dir = new_node(parent, mode);
+          dir->path = strdup(path);
           hash_table_put(TABLE, path, (void*) dir);
           add_node(dir, result);
           return dir;
@@ -311,11 +365,12 @@ make_node(char* path)
     }
   else
     {
-      mode = S_IFREG | S_IRWXU | S_IRGRP | S_IROTH;
+      mode = default_file;
       OSSObject* object = HeadObject(oss, path);
       if (!object)
         return NULL ;
-      oss_node* node = new_node(NULL, mode);
+      oss_node* parent = get_parent_node(path);
+      oss_node* node = new_node(parent, mode);
       node->name = substring(object->name, lastIndexOf(object->name, '/'),
           strlen(object->name) - 1);
       node->path = strdup(path);
@@ -327,4 +382,26 @@ make_node(char* path)
       return node;
     }
   return NULL ;
+}
+static oss_node*
+get_parent_node(char* path)
+{
+  int len = strlen(path);
+  int index = len - 1;
+  for (; index >= 0; index--)
+    {
+      if (path[index] == '/')
+        {
+          if (index == len - 1)
+            {
+              continue;
+            }
+          break;
+        }
+    }
+  char* parent_path = substring(path, 0, index);
+  oss_node* parent = hash_table_get(TABLE, parent_path);
+  free(parent_path);
+  return parent;
+
 }

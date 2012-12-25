@@ -60,6 +60,18 @@ StrGmtToLocaltime(const char* s)
   return mktime(&t)-timezone;
 }
 /*
+ * 2012-09-28T14:34:25.000Z
+ */
+time_t
+GmtToLocaltime(const char* s)
+{
+  struct tm t;
+  sscanf(s,"%d-%d-%dT%d:%d:%d.000Z",&t.tm_year,&t.tm_mon,&t.tm_mday,&t.tm_hour,&t.tm_min,&t.tm_sec);
+  t.tm_year -= 1900;
+  t.tm_mon -= 1;
+  return mktime(&t)-timezone;
+}
+/*
  * @description: 加密，编码
  * @param:	string 需要加密的字符串
  * @param:	len string的长度

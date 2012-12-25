@@ -74,6 +74,8 @@ localtime_gmt();
 time_t
 StrGmtToLocaltime(const char*);
 
+time_t
+GmtToLocaltime(const char* s);
 /*
  * @description:身份验证
  * @param:	key	AccessKey

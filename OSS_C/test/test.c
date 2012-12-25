@@ -9,6 +9,7 @@
 #include "ossutil.h"
 #include "HashTable.h"
 #include "oss.h"
+#include "String.h"
 
 #include <string.h>
 #include <stdio.h>
@@ -98,9 +99,9 @@ main()
 //	test_GetBucketACL();
 //	test_PutObject();
 //      test_GetObject();
-	test_HeadObject();
+//	test_HeadObject();
 //        test_CopyObject();
-//  test_strtotime();
+  test_strtotime();
   return 0;
 }
 
@@ -118,6 +119,11 @@ test_localtime_gmt()
 void
 test_strtotime(){
   char* s = "Wed, 05 Dec 2012 14:26:10 GMT";
+  char* s1 = "2012-09-28T14:34:25.000Z";
+  /*
+   * TODO:添加方法，转换一下时间格式 2012-09-28T14:34:25.000Z
+   */
+  //2012-09-28T14:34:25.000Z
   printf("orign time : %s\n",s);
   time_t t = StrGmtToLocaltime(s);
 //  printf("long time: %ld",t);
@@ -126,6 +132,8 @@ test_strtotime(){
   printf("%s\n",ctime(&t));
   gmtime(&t);
   printf("%s\n",asctime(gmtime(&t)));
+  t = GmtToLocaltime(s1);
+  printf("s2 %s\n",ctime(&t));
 }
 void
 test_hmac_base64()

@@ -37,7 +37,7 @@ char*
 substring(const char* s, int start, int end);
 
 char*
-concat(char* s,...);
+concat(int i, ...);
 
 #endif /* STRING_H_ */
 /*concat all string*/

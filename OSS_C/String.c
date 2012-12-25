@@ -7,6 +7,7 @@
 #include <stddef.h>
 #include <stdio.h>
 #include <stdarg.h>
+#include <stdlib.h>
 
 #include "String.h"
 
@@ -66,17 +67,20 @@ substring(const char* s, int start, int end)
 }
 
 char*
-concat(char* s, ...)
+concat(int i, ...)
 {
   va_list ap;
-  va_start(ap, s);
+  va_start(ap, i);
   String str;
   str.str = (char*) calloc(256, sizeof(char));
   str.length = 255;
-  char* arg = va_arg(ap,char*);
-  for (; arg != NULL ;)
+  int j = 0;
+  char* arg;
+  for (; j < i; j++)
     {
+      arg = va_arg(ap,char*);
       int total = strlen(str.str) + strlen(arg);
+
       if (total > str.length)
         {
           str.str = (char*) realloc(str.str, total);
@@ -87,8 +91,11 @@ concat(char* s, ...)
         {
           strcat(str.str, arg);
         }
+
     }
   va_end(ap);
   str.length = strlen(str.str);
-  return str.str;
+  char* new_string = strdup(str.str);
+  free(str.str);
+  return new_string;
 }

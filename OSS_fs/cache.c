@@ -14,6 +14,8 @@
 #include <sys/types.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <stdio.h>
+#include <stdarg.h>
 
 #include "cache.h"
 #include "HashTable.h"
@@ -21,15 +23,16 @@
 #include "String.h"
 #include "oss.h"
 
-struct HashTable* TABLE;
-List node_changed;
-char* cache_dir;
-uid_t uid;
-gid_t gid;
-OSSPtr oss;
-List buckets;
-mode_t default_dir = S_IFDIR | S_IRWXU | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH;
-mode_t default_file = S_IFREG | S_IRWXU | S_IRGRP | S_IROTH;
+static struct HashTable* TABLE;
+static List node_changed;
+static char* cache_dir;
+static uid_t uid;
+static gid_t gid;
+static OSSPtr oss;
+static List buckets;
+static mode_t default_dir = S_IFDIR | S_IRWXU | S_IRGRP | S_IXGRP | S_IROTH
+    | S_IXOTH;
+static mode_t default_file = S_IFREG | S_IRWXU | S_IRGRP | S_IROTH;
 /*private function*/
 static oss_node*
 new_node(oss_node* parent, mode_t mode);
@@ -41,7 +44,7 @@ static void
 add_node(oss_node* parent, ListBucketResult* result);
 
 static inline oss_node*
-getNodeFromParent(oss_node* parent, char* path)
+getNodeFromParent(oss_node* parent, const char* path)
 {
   oss_node* node = parent->childs;
   while (node)
@@ -50,16 +53,16 @@ getNodeFromParent(oss_node* parent, char* path)
         return node;
       node = node->next;
     }
-  return NULL ;
+  return node;
 }
 static oss_node*
-get_parent_node(char* path);
-static oss_node*
-make_node(char* path);
+get_parent_node(const char* path);
+
 /*public function*/
 void
 oss_init_cache(const char* cache)
 {
+  log_msg("%s\n", "初始化缓存");
   if (!cache)
     {
       char* home = getenv("HOME");
@@ -70,32 +73,43 @@ oss_init_cache(const char* cache)
     }
   else
     {
-      cache_dir = cache;
+      cache_dir = strdup(cache);
     }
 
   uid = getuid();
   gid = getgid();
-
+  log_msg("%s\n", "初始化hashtable");
   TABLE = hash_table_init_size(OSS_TABLE_SIZE);
   node_changed = listInit();
   oss = oss_init("storage.aliyun.com", "abysmn89uz488l1dfycon3qa",
       "qfEZ+LNuGJUP/FlRw1R3aKpwiwY=");
+//  oss->proxy = "192.168.0.142:808";
   buckets = GetService(oss);
+  log_msg("GetService");
   oss_node* root = new_node(NULL, default_dir);
   root->name = strdup("/");
   root->path = strdup("/");
   root->cache_path = strdup(cache_dir);
+  log_msg("process bucket list");
   List bucket_node;
   for_each(bucket_node,buckets)
     {
-      char* bucket = concat("/", (char*) bucket_node->ptr);
-      ListBucketResult* result = ListObject(oss, bucket, NULL, 0, NULL, "/");
-      free(bucket);
-      add_node(root, result);
+      struct Bucket* bucket = (struct Bucket*) bucket_node->ptr;
+      char* str_bucket = concat(2, "/", bucket->name);
+      log_msg("%s\n", str_bucket);
+      oss_node* node = new_node(root, default_dir);
+      node->name = strdup(bucket->name);
+      node->path = str_bucket;
+      hash_table_put(TABLE, node->path, node);
+      ListBucketResult* result = ListObject(oss, str_bucket, NULL, 0, NULL,
+          "/");
+      log_msg("add to cache");
+      add_node(node, result);
+      free_ListBucketResult(result);
     }
-  listFreeObject(buckets);
-  listFree(buckets);
+  log_msg("root");
   hash_table_put(TABLE, "/", root);
+  log_msg("root");
 }
 
 void
@@ -105,7 +119,7 @@ oss_close_cache(int sync)
   hash_table_free(TABLE);
   listFree(node_changed);
   free_ossptr(oss);
-  listFreeObject(buckets);
+  listFreeObjectByFun(buckets, (void*) free_Bucket);
   listFree(buckets);
 }
 
@@ -139,7 +153,7 @@ new_node(oss_node *parent, mode_t mode)
   node->ctime = node->atime;
   node->smtime = 0;
   node->utime = 0;
-  node->lock_expire;
+  node->lock_expire = 0;
   if (S_ISDIR(mode))
     {
       node->mode = mode;
@@ -183,31 +197,37 @@ oss_get_cache(const char* path)
   oss_node* node = (oss_node*) hash_table_get(TABLE, path);
   if (node)
     return node;
+  log_msg("%s can't be found from cache", path);
+  char* parent = NULL;
   if (!node)
     {
+      log_msg("try to find it in its parent");
       if (strlen(strrchr(path, '/')) == 1)
         { //Dir
           char* tmp = substring(path, 0, strlen(path) - 2);
           int index = lastIndexOf(tmp, '/');
           free(tmp);
-          char* parent = substring(path, 0, index);
-          oss_node* parent_node = hash_table_get(TABLE, parent);
-          free(parent);
-          if (parent_node)
-            node = getNodeFromParent(parent_node, path);
-          if (!node)
-            {
-              node = make_node(path);
-            }
+          parent = substring(path, 0, index);
         }
       else
-        { //FILE
-          node = make_node(path);
+        { //
+          int index = lastIndexOf(path, '/');
+          if (index > 0) //root is 0
+            index -= 1;
+          parent = substring(path, 0, index);
         }
+      oss_node* parent_node = hash_table_get(TABLE, parent);
+      if (parent)
+        free(parent);
+      if (parent_node)
+        node = getNodeFromParent(parent_node, path);
+//      if(!node)
+//        node = make_node(path);
     }
 
   return node;
 }
+
 static void
 delete_node(oss_node* node)
 {
@@ -235,60 +255,46 @@ delete_node(oss_node* node)
 static void
 add_node(oss_node* parent, ListBucketResult* result)
 {
+  if (!result)
+    return;
   List object_node;
   for_each(object_node,result->contents)
     {
       Contents* content = (Contents*) object_node->ptr;
-      char* name = ubstring(content->key, lastIndexOf(content->key, '/'),
+      char* name = substring(content->key, lastIndexOf(content->key, '/') + 1,
           strlen(content->key) - 1);
-      char* path = concat(parent->path, name);
-      oss_node* cache = oss_get_cache(path);
-      if (cache)
-        {
-          if (!cache->parent)
-            {
-              cache->parent = parent;
-              cache->next = parent->childs;
-              parent->childs = cache;
-            }
-          free(name);
-          free(path);
-          continue;
-        }
+      char* path = concat(3, parent->path, "/", name);
+      log_msg("%s %s", name, path);
       oss_node* node = new_node(parent, default_file);
-
-      node->name = name;
-      node->path = path;
+      log_msg("create new node %s", name);
+      node->name = strdup(name);
+      node->path = strdup(path);
       node->etag = strdup(content->etag);
       node->mime_type = strdup(content->type);
       node->size = atol(content->size);
-      node->mtime = StrGmtToLocaltime(content->lastmodified);
+      node->mtime = GmtToLocaltime(content->lastmodified);
       node->utime = node->mtime;
       node->smtime = node->mtime;
       free(name);
       free(path);
+      log_msg("create end");
     }
   List dir_node;
   for_each(dir_node,result->commonprefixes)
     {
       char* dir = (char*) dir_node->ptr;
+      log_msg(dir);
       dir = substring(dir, 0, strlen(dir) - 2);
       char* name = substring(dir, lastIndexOf(dir, '/'), strlen(dir) - 1);
-      char* path = concat(parent->path, name, "/");
-      oss_node* cache = oss_get_cache(path);
-      if (cache)
-        {
-          free(name);
-          free(path);
-          continue;
-        }
+      char* path = concat(3, parent->path, "/", name);
+
+      log_msg("create new node %s", name);
       oss_node* node = new_node(parent, default_dir);
-      char* dir = (char*) dir_node->ptr;
-      dir = substring(dir, 0, strlen(dir) - 2);
-      node->name = name;
+//      dir = substring(dir, 0, strlen(dir) - 2);
+      node->name = strdup(name);
       free(dir);
-      node->path = path;
-      hash_table_put(TABLE, path, node); //for alone node to find parent
+      node->path = strdup(path);
+      hash_table_put(TABLE, node->path, node); //for alone node to find parent
       free(name);
       free(path);
     }
@@ -303,17 +309,14 @@ oss_open_node(const char* path, int flags)
     return ENOENT;
   if (!node->cache_path)
     {
-      node->cache_path = concat(cache_dir, "oss_XXXXXX");
+      node->cache_path = concat(2, cache_dir, "oss_XXXXXX");
       fd = mkstemp(node->cache_path);
       log_msg("create file %s\n", node->cache_path);
       chmod(node->cache_path, node->mode);
       close(fd);
       GetObject(oss, node->path, node->cache_path, NULL, 0);
     }
-  else
-    {
-      fd = open(node->cache_path, flags);
-    }
+  fd = open(node->cache_path, flags);
   struct oss_handle* handle = (struct oss_handle*) malloc(
       sizeof(struct oss_handle));
   handle->fd = fd;
@@ -328,80 +331,81 @@ log_msg(const char* format, ...)
 {
   va_list sp;
   va_start(sp, format);
-
+#ifdef DEBUG
+  vprintf(format,sp);
+  printf("\n");
+#else
   vsyslog(LOG_MAKEPRI(LOG_USER,LOG_DEBUG), format, sp);
+#endif
+}
+void
+oss_read_dir(oss_node* parent){
+  if (S_ISDIR(parent->mode))
+     {
+       oss_node* bucket = parent;
+       while (lastIndexOf(bucket->path, '/') != 0)
+         {
+           bucket = bucket->parent;
+         }
+       char* relative_path = substring(parent->path, strlen(bucket->path) + 1, strlen(parent->path)-1);
+       char* prefix = concat(2,relative_path,"/");
+       ListBucketResult* result = ListObject(oss, bucket->path, prefix, 0, NULL,
+           "/");
+       if (prefix)
+         free(prefix);
+       if(relative_path)
+         free(relative_path);
+       add_node(parent, result);
+     }
+}
+
+
+oss_node*
+make_node(const char* path)
+{
+  /*
+   * 先找到父节点
+   *      如果父节点不存在，继续找父节点
+   *      找到后，向网络查询字节点
+   *      检查path是否存在
+   *      存在，返回该节点
+   *      不存在，返回NULL
+   *
+   * */
+  oss_node* node = NULL;
+  oss_node* parent = get_parent_node(path);
+  if (!parent)
+    {
+      int index = lastIndexOf(path, '/');
+      if (index == 0 && parent == NULL )
+        return NULL ;
+      if (index > 0)
+        index -= 1;
+      char* parent_path = substring(path, 0, index);
+      parent = make_node(parent_path);
+      free(parent_path);
+    }
+  if (parent->nref == 2)
+    {
+      oss_read_dir(parent);
+      node = parent->childs;
+      while (strcmp(path, node->path) != 0)
+        {
+          node = node->next;
+        }
+    }
+  return node;
 }
 /*private function implement*/
 
 static oss_node*
-make_node(char* path)
+get_parent_node(const char* path)
 {
-//  char *str1, *token, *saveptr;
-//  char *tmp = strdup(path);
-//  for (str1 = tmp;; str1 = NULL )
-//    {
-//      token = strtok_r(str1, "/", &saveptr);
-//      if (token == NULL )
-//        break;
-//    }
-//  free(tmp);
-  int lastSlash = lastIndexOf(path, '/');
-  mode_t mode;
-  if (lastSlash == strlen(path) - 1)
-    {
-      mode = default_dir;
-      char* bucket = substring(path, 0, indexOf(path + 1, '/'));
-      char* prefix = strchr(path + 1, '/');
-      ListBucketResult* result = ListObject(oss, bucket, prefix, 0, NULL, "/");
-      if (result)
-        {
-          oss_node* parent = get_parent_node(path);
-          oss_node* dir = new_node(parent, mode);
-          dir->path = strdup(path);
-          hash_table_put(TABLE, path, (void*) dir);
-          add_node(dir, result);
-          return dir;
-        }
-    }
-  else
-    {
-      mode = default_file;
-      OSSObject* object = HeadObject(oss, path);
-      if (!object)
-        return NULL ;
-      oss_node* parent = get_parent_node(path);
-      oss_node* node = new_node(parent, mode);
-      node->name = substring(object->name, lastIndexOf(object->name, '/'),
-          strlen(object->name) - 1);
-      node->path = strdup(path);
-      node->etag = strdup(object->etag);
-      node->mime_type = strdup(object->minetype);
-      node->mtime = object->mtime;
-      node->size = object->size;
-      hash_table_put(TABLE, path, node);
-      return node;
-    }
-  return NULL ;
-}
-static oss_node*
-get_parent_node(char* path)
-{
-  int len = strlen(path);
-  int index = len - 1;
-  for (; index >= 0; index--)
-    {
-      if (path[index] == '/')
-        {
-          if (index == len - 1)
-            {
-              continue;
-            }
-          break;
-        }
-    }
+  int index = lastIndexOf(path, '/');
+  if (index > 0)
+    index -= 1;
   char* parent_path = substring(path, 0, index);
   oss_node* parent = hash_table_get(TABLE, parent_path);
   free(parent_path);
   return parent;
-
 }

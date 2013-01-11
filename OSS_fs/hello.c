@@ -21,6 +21,7 @@
 #include "oss.h"
 #include "List.h"
 #include "ossutil.h"
+#include "cache.h"
 
 #include <fuse.h>
 #include <stdio.h>
@@ -34,90 +35,87 @@ static OSSPtr oss;
 static int
 hello_getattr(const char *path, struct stat *stbuf)
 {
-  syslog(LOG_MAKEPRI(LOG_USER,LOG_WARNING), "path:%s\n", path);
-  int res = 0;
-  memset(stbuf, 0, sizeof(struct stat));
-  if (strstr(path, ".") == NULL )
+  syslog(LOG_MAKEPRI(LOG_USER,LOG_WARNING), "hello_getattr:%s\n", path);
+  oss_node* node = oss_get_cache(path);
+  if (!node)
     {
-      stbuf->st_mode = S_IFDIR | 0755;
+      node = make_node(path);
+      if (!node)
+        return -ENOENT;
+    }
+  memset(stbuf, 0, sizeof(struct stat));
+  stat("/home/liuchunhua", stbuf);
+  if (S_ISDIR(node->mode))
+    {
+      log_msg("%s is dir", path);
+      stbuf->st_mode = node->mode;
       stbuf->st_nlink = 2;
+      stbuf->st_atim.tv_sec = node->atime;
+      stbuf->st_mtim.tv_sec = node->mtime;
+      stbuf->st_gid = node->gid;
+      stbuf->st_uid = node->uid;
+      stbuf->st_ctim.tv_sec = node->ctime;
     }
   else
     {
-      stbuf->st_mode = S_IFREG | 0444;
+      log_msg("%s is reg file", path);
+      stbuf->st_mode = node->mode;
       stbuf->st_nlink = 1;
-      OSSObject* object = HeadObject(oss, path);
-      stbuf->st_size = object->size;
+      stbuf->st_size = node->size;
+      stbuf->st_atim.tv_sec = node->atime;
+      stbuf->st_mtim.tv_sec = node->mtime;
+      stbuf->st_gid = node->gid;
+      stbuf->st_uid = node->uid;
+      stbuf->st_ctim.tv_sec = node->ctime;
     }
 
-  return res;
+  return 0;
 }
 
 static int
 hello_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t offset,
     struct fuse_file_info *fi)
 {
-  syslog(LOG_MAKEPRI(LOG_USER,LOG_WARNING), "%s\n", path);
-  (void) offset;
-  (void) fi;
-  if (strcmp(path, "/") != 0)
+  log_msg("hello_readdir : %s", path);
+  if (strcmp(".", path) == 0 || strcmp(".", path) == 0)
+    filler(buf, path, NULL, 0);
+  oss_node* node = oss_get_cache(path);
+  if (!node)
     {
-      filler(buf, ".", NULL, 0);
-      filler(buf, "..", NULL, 0);
-      syslog(LOG_MAKEPRI(LOG_USER,LOG_WARNING), "connect to oss\n");
-      ListBucketResult* result = ListObject(oss, path, NULL, 0, NULL, "/");
-      if (result == NULL )
-        return -EIO;
-      List node;
-      for_each(node,result->contents)
-        {
-          Contents* content = (Contents*) node->ptr;
-          syslog(LOG_MAKEPRI(LOG_USER,LOG_WARNING), "%s\n", content->key);
-          filler(buf, content->key, NULL, 0);
-        }
-      syslog(LOG_MAKEPRI(LOG_USER,LOG_WARNING), "common prefixes\n");
-      if (result->commonprefixes)
-        {
-          for_each(node,result->commonprefixes)
-            {
-              syslog(LOG_MAKEPRI(LOG_USER,LOG_WARNING), "%s\n",
-                  (char*) node->ptr);
-              filler(buf, (char*) (node->ptr), NULL, 0);
-            }
-        }
-      syslog(LOG_MAKEPRI(LOG_USER,LOG_WARNING), "to free object\n");
-      free_ListBucketResult(result);
-      syslog(LOG_MAKEPRI(LOG_USER,LOG_WARNING), "return from hello_readdir\n");
-      return 0;
+      node = make_node(path);
+      if (!node)
+        return -ENOENT;
     }
-  syslog(LOG_MAKEPRI(LOG_USER,LOG_WARNING), "connect to oss\n");
-  List list = GetService(oss);
-  filler(buf, ".", NULL, 0);
-  filler(buf, "..", NULL, 0);
-  if (list == NULL )
-    return 0;
-  List node;
-  for_each(node,list)
+  if(S_ISDIR(node->mode)&&node->nref==2)
+    oss_read_dir(node);
+  log_msg("child num is %d", node->nref);
+  if (S_ISDIR(node->mode))
     {
-      struct Bucket* bucket = (struct Bucket*) node->ptr;
-      syslog(LOG_MAKEPRI(LOG_USER,LOG_WARNING), "%s\n", bucket->name);
-      filler(buf, bucket->name, NULL, 0);
+
+      oss_node* child = node->childs;
+      while (child)
+        {
+          log_msg("%s", child->name);
+          filler(buf, child->name, NULL, 0);
+          child = child->next;
+        }
     }
-  listFreeObjectByFun(list, (void*) free_Bucket);
-  listFree(list);
   return 0;
 }
 
 static int
 hello_open(const char *path, struct fuse_file_info *fi)
 {
-  syslog(LOG_MAKEPRI(LOG_USER,LOG_WARNING), "hello_open");
+  log_msg("hello_open %s", path);
 //  if (strcmp(path, hello_path) != 0)
 //    return -ENOENT;
 //
 //  if ((fi->flags & 3) != O_RDONLY)
 //    return -EACCES;
-
+  int fd = oss_open_node(path, fi->flags);
+  if (fd < 0)
+    return EACCES;
+  fi->fh = fd;
   return 0;
 }
 
@@ -125,22 +123,20 @@ static int
 hello_read(const char *path, char *buf, size_t size, off_t offset,
     struct fuse_file_info *fi)
 {
-  syslog(LOG_MAKEPRI(LOG_USER,LOG_WARNING), "hello_read");
-  OSSObject* object = HeadObject(oss, path);
-  size_t len = object->size;
-  (void) fi;
-
-  if (offset < len)
+  log_msg("hello_read : %s", path);
+  oss_node* node = oss_get_cache(path);
+  if (!node)
     {
-      if (offset + size > len)
-        size = len - offset;
-      syslog(LOG_MAKEPRI(LOG_USER,LOG_WARNING), "read from %ld : %ld bytes\n",(long int)offset,(long int)size);
-      GetObjectIntoMemory(oss, path, buf, size, offset, NULL );
+      node = make_node(path);
+      if (!node)
+        return -ENOENT;
     }
-  else
-    size = 0;
+  int count = 0;
+  count = pread(fi->fh, buf, size, offset);
+  if (count < 0)
+    return EIO;
 
-  return size;
+  return count;
 }
 
 static struct fuse_operations hello_oper =
@@ -152,6 +148,8 @@ main(int argc, char *argv[])
 {
   oss = oss_init("storage.aliyun.com", "abysmn89uz488l1dfycon3qa",
       "qfEZ+LNuGJUP/FlRw1R3aKpwiwY=");
+  oss_init_cache(NULL );
+  log_msg("cache ready");
   int result = fuse_main(argc, argv, &hello_oper, NULL);
   free_ossptr(oss);
   return result;

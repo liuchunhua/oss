@@ -8,6 +8,8 @@
 #include <stdio.h>
 #include <stdarg.h>
 #include <stdlib.h>
+#include <string.h>
+#include <ctype.h>
 
 #include "String.h"
 
@@ -52,7 +54,7 @@ char*
 substring(const char* s, int start, int end)
 {
   int length = strlen(s);
-  if (start >= length || end <= start)
+  if (start >= length || end < start)
     return NULL ;
   if (start < 0)
     start = 0;
@@ -98,4 +100,33 @@ concat(int i, ...)
   char* new_string = strdup(str.str);
   free(str.str);
   return new_string;
+}
+char *toLowcase(const char *str)
+{
+	char *newstr = strdup(str);
+	char *p = newstr;
+	while(*p != '\0'){
+		if(isupper(*p))
+		{
+			*p = tolower(*p);
+		}
+		p++;
+	}
+
+	return newstr;
+}
+
+char *toUppercase(const char *str)
+{
+	char *newstr = strdup(str);
+	char *p = newstr;
+	while(*p != '\0')
+	{
+		if(islower(*p))
+		{
+			*p = toupper(*p);
+		}
+		p++;
+	}
+	return newstr;
 }

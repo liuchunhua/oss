@@ -16,6 +16,16 @@ struct String
   size_t length;
 };
 
+typedef struct{
+    String *(*init)();
+    void (*destroy)(String *);
+    int (*indexOf)(const char *, int);
+    int (*lastIndexOf)(const char *, int);
+    char *(*substring)(const char *, int, int);
+    char *(*concat)(int,...);
+    char *(*toLowercase)(const char *);
+    char *(*toUppercase)(const char *);
+}StringOpation;
 /*
  *return the position of the character in the String,not found return -1;
  */
@@ -35,9 +45,30 @@ lastIndexOf(const char* s, int c);
  */
 char*
 substring(const char* s, int start, int end);
+/*
+ * String to lowcase
+ */
+char *toLowcase(const char *str);
+
+/*
+ * String to uppercase
+ */
+char *toUppercase(const char *str);
+
 
 char*
 concat(int i, ...);
+
+StringOpation StringClass = {
+    .init = new_string,
+    .destroy = free_string,
+    .indexOf = indexOf,
+    .lastIndexOf = lastIndexOf,
+    .substring = substring,
+    .concat = concat,
+    .toLowercase = toLowcase,
+    .toUppercase = toUppercase
+};
 
 #endif /* STRING_H_ */
 /*concat all string*/

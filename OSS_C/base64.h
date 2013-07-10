@@ -10,6 +10,6 @@
 
 char* base64_encode(const char* string, int len);
 
-char* base64_decode(const char* string, int len);
+//char* base64_decode(const char* string, int len);
 
 #endif /* BASE64_H_ */

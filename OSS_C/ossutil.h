@@ -1,52 +1,52 @@
 /*
- * ossutil.h
+ *ossutil.h
  *
- *  Created on: 2012-9-22
- *      Author: lch
+ * Created on: 2012-9-22
+ *     Author: lch
  */
 
 #ifndef OSSUTIL_H_
 #define OSSUTIL_H_
 #include <time.h>
+#include <libxml/xmlmemory.h>
+#include <libxml/parser.h>
 
 #include "HashTable.h"
 #include "List.h"
+#include "service.h"
 
 #define OSS_LEN 50
 #define OSS_TIME_FORMAT "%a, %d %b %Y %H:%M:%S GMT"
 
-struct Bucket
+typedef struct
 {
-  char* name;
-  char* creationDate;
-};
-struct Owner
-{
-  char* id;
-  char* displayName;
-};
+  char *host;
+  char *access_id;
+  char *access_key;
+  char *proxy;
+} OSS;
 
 typedef struct
 {
-  char* key;
-  char* lastmodified;
-  char* etag;
-  char* type;
-  char* size;
-  char* storageclass;
-  struct Owner* owner;
+  char *key;
+  char *lastmodified;
+  char *etag;
+  char *type;
+  char *size;
+  char *storageclass;
+  struct Owner *owner;
 
 } Contents;
 
 typedef struct
 {
-  char* name;
-  char* prefix;
-  char* marker;
-  char* maxkeys;
-  char* nextMarker;
-  char* delimiter;
-  char* istruncated;
+  char *name;
+  char *prefix;
+  char *marker;
+  char *maxkeys;
+  char *nextMarker;
+  char *delimiter;
+  char *istruncated;
   List contents;          //List<Contents>
   List commonprefixes;    //List<char*>
 
@@ -60,13 +60,13 @@ free_Contents(Contents*);
 void
 free_ListBucketResult(ListBucketResult*);
 //the allocated memory
-typedef char* M_str;
+typedef char *M_str;
 
 char oss_buf[OSS_LEN];
 
 /*
- * @description:返回当前时间 "%a, %d %b %Y %H:%M:%S GMT"
- * @return:	当前时间字符串
+ *@description:返回当前时间 "%a, %d %b %Y %H:%M:%S GMT"
+ *@return:	当前时间字符串
  */
 M_str
 localtime_gmt();
@@ -75,43 +75,55 @@ time_t
 StrGmtToLocaltime(const char*);
 
 time_t
-GmtToLocaltime(const char* s);
+GmtToLocaltime(const char *s);
+
+char *
+hmac_base64(const char *string, int len, const char *key, int key_len);
+
 /*
- * @description:身份验证
- * @param:	key	AccessKey
- * @param:	method	http GET、PUT、POST
- * @param:	headers	必须包含"Date","CanonicalizedResource"
- * @param:	resource 获取的资源
- * @return
+ *@description:身份验证
+ *@param:	key	AccessKey
+ *@param:	method	http GET、PUT、POST
+ *@param:	headers	必须包含"Date","CanonicalizedResource"
+ *@param:	resource 获取的资源
+ *@return
  */
 
 M_str
-oss_authorizate(const char* key, const char* method, struct HashTable* headers,
-    const char* resource);
+oss_authorizate(const char *key, const char *method, struct HashTable *headers,
+    const char *resource);
 
 /*
- * @description:得到所有buckets
- * @param:	xml oss返回的xml
- * @param:	owner id NULL
- * @return:	List<struct Bucket*>
+ *@description:得到所有buckets
+ *@param:	xml oss返回的xml
+ *@param:	owner id NULL
+ *@return:	List<struct Bucket*>
  */
 List
-oss_ListAllMyBucketsResult(const char* xml, struct Owner* owner);
+oss_ListAllMyBucketsResult(const char *xml, struct Owner *owner);
 /*
- * @description:list object
- * @param:
+ *@description:list object
+ *@param:
  */
 ListBucketResult*
-oss_ListBucketResult(const char* xml);
+oss_ListBucketResult(const char *xml);
 
 M_str
-oss_GetBucketAcl(const char* xml);
+oss_GetBucketAcl(const char *xml);
 /*
- * 得到文件大小
+ *得到文件大小
  */
 size_t
-oss_GetObjectSize(const char* httpheader);
+oss_GetObjectSize(const char *httpheader);
 
+Owner *
+getOwner(xmlNodePtr node);
 
+List
+getListBucket(xmlNodePtr node);
 
-#endif /* OSSUTIL_H_ */
+char *
+http_request(OSS *oss, const char *url, const char *method);
+
+#endif
+/*OSSUTIL_H_ */

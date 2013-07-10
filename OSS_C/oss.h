@@ -13,12 +13,6 @@
 
 #include <stdio.h>
 
-typedef struct{
-	char* host;
-	char* access_id;
-	char* access_key;
-	char* proxy;
-} OSS;
 
 
 typedef OSS* OSSPtr;

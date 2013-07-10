@@ -1,15 +1,16 @@
 /*
- * ossutil.c
+  *ossutil.c
  *
- *  Created on: 2012-9-22
- *      Author: lch
+  * Created on: 2012-9-22
+  *     Author: lch
  */
 
 #include "ossutil.h"
 #include "base64.h"
 #include "HashTable.h"
 #include "List.h"
-
+#include "String.h"
+#include "service.h"
 
 #include <time.h>
 #include <string.h>
@@ -28,18 +29,18 @@ localtime_gmt()
   time_t cur_time;
   memset(oss_buf, 0x0, sizeof(oss_buf));
   time(&cur_time);
-  struct tm* tm_time = gmtime(&cur_time);
+  struct tm *tm_time = gmtime(&cur_time);
   strftime(oss_buf, OSS_LEN, OSS_TIME_FORMAT, tm_time);
   return strdup(oss_buf);
 }
 time_t
-StrGmtToLocaltime(const char* s)
+StrGmtToLocaltime(const char *s)
 {
   int i=0;
   char week[4]={};
   char month[4]={};
-  char* weeks[7] = {"Sun","Mon","Tue","Wed","Thu","Fri","Sat"};
-  char* monthes[12] = {"Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"};
+  char *weeks[7] = {"Sun","Mon","Tue","Wed","Thu","Fri","Sat"};
+  char *monthes[12] = {"Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"};
   struct tm t;
   memset(&t,0x0,sizeof(struct tm));
   //Wed, 05 Dec 2012 14:26:10 GMT
@@ -60,10 +61,10 @@ StrGmtToLocaltime(const char* s)
   return mktime(&t)-timezone;
 }
 /*
- * 2012-09-28T14:34:25.000Z
+  *2012-09-28T14:34:25.000Z
  */
 time_t
-GmtToLocaltime(const char* s)
+GmtToLocaltime(const char *s)
 {
   struct tm t;
   sscanf(s,"%d-%d-%dT%d:%d:%d.000Z",&t.tm_year,&t.tm_mon,&t.tm_mday,&t.tm_hour,&t.tm_min,&t.tm_sec);
@@ -72,16 +73,15 @@ GmtToLocaltime(const char* s)
   return mktime(&t)-timezone;
 }
 /*
- * @description: 加密，编码
- * @param:	string 需要加密的字符串
- * @param:	len string的长度
- * @param:	key 密钥
- * @param:	key_len 密钥长度
- * @return:	加密后字符串
+  *@description: 加密，编码
+  *@param:	string 需要加密的字符串
+  *@param:	len string的长度
+  *@param:	key 密钥
+  *@param:	key_len 密钥长度
+  *@return:	加密后字符串
  */
 
-static M_str
-hmac_base64(const char* string, int len, const char* key, int key_len)
+char *hmac_base64(const char *string, int len, const char *key, int key_len)
 {
 //	HMAC_CTX ctx;
   unsigned int out_len = 0;
@@ -96,13 +96,12 @@ hmac_base64(const char* string, int len, const char* key, int key_len)
 
 }
 
-static struct Owner*
-getOwner(xmlNodePtr node)
+Owner *getOwner(xmlNodePtr node)
 {
   if (!strcmp((char*) node->name, "Owner"))
     {
       xmlNodePtr cur = node->children;
-      struct Owner* owner = (struct Owner*) malloc(sizeof(struct Owner));
+      Owner *owner = OwnerClass.init();
       assert(owner!=NULL);
       while (cur)
         {
@@ -120,7 +119,7 @@ getBucket(xmlNodePtr node)
   if (!strcmp((char*) node->name, "Bucket"))
     {
       xmlNodePtr cur = node->children;
-      struct Bucket* bucket = (struct Bucket*) malloc(sizeof(struct Bucket));
+      struct Bucket *bucket = BucketClass.init();
       assert(bucket!=NULL);
       while (cur)
         {
@@ -138,7 +137,7 @@ getContents(xmlNodePtr node)
   if (!strcmp((char*) node->name, "Contents"))
     {
       xmlNodePtr cur = node->children;
-      Contents* contents = (Contents*) malloc(sizeof(Contents));
+      Contents *contents = (Contents*) malloc(sizeof(Contents));
       memset(contents,0x0,sizeof(Contents));
       while (cur)
         {
@@ -167,7 +166,8 @@ getCommonPrefixes(xmlNodePtr node)
 
       while (cur)
         {
-          listAdd(list, xmlNodeGetContent(cur));
+          if(cur->type== XML_ELEMENT_NODE)
+            listAdd(list, xmlNodeGetContent(cur));
           cur = cur->next;
         }
     }
@@ -179,10 +179,11 @@ getListBucketResult(xmlNodePtr node)
   if (!strcmp((char*) node->name, "ListBucketResult"))
     {
       xmlNodePtr cur = node->children;
-      ListBucketResult* lbr = (ListBucketResult*) malloc(
+      ListBucketResult *lbr = (ListBucketResult*) malloc(
           sizeof(ListBucketResult));
       memset(lbr, 0x0, sizeof(ListBucketResult));
-      List list = listInit();
+      List con_list = listInit();
+      List pre_list = listInit();
       while (cur)
         {
           if (cur->type == XML_TEXT_NODE)
@@ -199,19 +200,22 @@ getListBucketResult(xmlNodePtr node)
           GetNodeValue(cur, lbr, istruncated);
           if (cur->type == XML_ELEMENT_NODE
               && !strcasecmp((char*) cur->name, "Contents"))
-            listAdd(list, getContents(cur));
+            listAdd(con_list, getContents(cur));
           if (cur->type == XML_ELEMENT_NODE
               && !strcasecmp((char*) cur->name, "CommonPrefixes"))
             lbr->commonprefixes = getCommonPrefixes(cur);
           cur = cur->next;
         }
-      lbr->contents = list;
+      lbr->contents = con_list;
+      if(!lbr->commonprefixes)
+        lbr->commonprefixes = pre_list;
+      else
+        listFree(pre_list);
       return lbr;
     }
   return NULL ;
 }
-static List
-getListBucket(xmlNodePtr node)
+List getListBucket(xmlNodePtr node)
 {
   if (!strcmp((char*) node->name, "Buckets"))
     {
@@ -222,7 +226,7 @@ getListBucket(xmlNodePtr node)
           if (cur->type == XML_ELEMENT_NODE
               && !strcmp((char*) cur->name, "Bucket"))
             {
-              struct Bucket* bucket = getBucket(cur);
+              struct Bucket *bucket = getBucket(cur);
               if (bucket)
                 listAdd(list, bucket);
             }
@@ -233,7 +237,7 @@ getListBucket(xmlNodePtr node)
   return NULL ;
 }
 
-//按字母顺序升序排列
+//按字母顺序升序排列,合并相同
 static void
 sort_list_asc(List ls)
 {
@@ -244,10 +248,10 @@ sort_list_asc(List ls)
       List next = node->next;
       while (next != last)
         {
-          struct pair* a = (struct pair*) node->ptr;
-          struct pair* b = (struct pair*) next->ptr;
-          char* a_key = (char*) a->key;
-          char* b_key = (char*) b->key;
+          struct pair *a = (struct pair*) node->ptr;
+          struct pair *b = (struct pair*) next->ptr;
+          char *a_key = (char*) a->key;
+          char *b_key = (char*) b->key;
           if (strcoll(a_key, b_key) > 0)
             {
               node->prev->next = node->next;
@@ -261,7 +265,7 @@ sort_list_asc(List ls)
             {
               int size = strlen((char*) a->value) + strlen((char*) b->value)
                   + 2;
-              char* new_string = malloc(size);
+              char *new_string = malloc(size);
               strcat(new_string, (char*) a->value);
               strcat(new_string, ",");
               strcat(new_string, (char*) b->value);
@@ -284,14 +288,14 @@ sort_list_asc(List ls)
 }
 
 M_str
-oss_authorizate(const char* key, const char* method, struct HashTable* headers,
-    const char* resource)
+oss_authorizate(const char *key, const char *method, struct HashTable *headers,
+    const char *resource)
 {
-  char* date = (char*) hash_table_get(headers, "Date");
-  char* content_md5 = (char*) hash_table_get(headers, "Content-Md5");
-  char* content_type = (char*) hash_table_get(headers, "Content-Type");
+  char *date = (char*) hash_table_get(headers, "Date");
+  char *content_md5 = (char*) hash_table_get(headers, "Content-Md5");
+  char *content_type = (char*) hash_table_get(headers, "Content-Type");
   int n = strcspn(resource, "?");
-  char* res = strndup(resource, n);
+  char *res = strndup(resource, n);
   if (res && strlen(res) > 0 && strcasestr(resource, "acl") == NULL )
     resource = res;
   assert(resource!=NULL);
@@ -313,8 +317,9 @@ oss_authorizate(const char* key, const char* method, struct HashTable* headers,
   List node;
   for_each(node,list)
     {
-      struct pair* p = (struct pair*) node->ptr;
+      struct pair *p = (struct pair*) node->ptr;
       if (strcasestr((char*) (p->key), "x-oss-") != NULL
+           // override 查询字符
           || strcasestr((char*) (p->key), "response") != NULL )
         {
           strcat(buf, (char*) (p->key));
@@ -325,13 +330,13 @@ oss_authorizate(const char* key, const char* method, struct HashTable* headers,
     }
   listFree(list);
   strcat(buf, resource);
-  char * code = hmac_base64(buf, strlen(buf), key, strlen(key));
+  char  *code = hmac_base64(buf, strlen(buf), key, strlen(key));
   free(res);
   return code;
 }
 
 List
-oss_ListAllMyBucketsResult(const char* xml, struct Owner* owner)
+oss_ListAllMyBucketsResult(const char *xml, struct Owner *owner)
 {
   xmlDocPtr doc;
   xmlNodePtr root;
@@ -345,7 +350,7 @@ oss_ListAllMyBucketsResult(const char* xml, struct Owner* owner)
     {
       if (!strcmp((char*) cur->name, "Owner") && owner != NULL )
         {
-          struct Owner* temp = getOwner(cur);
+          struct Owner *temp = getOwner(cur);
           owner->id = temp->id;
           owner->displayName = temp->displayName;
           free(temp);
@@ -361,7 +366,7 @@ oss_ListAllMyBucketsResult(const char* xml, struct Owner* owner)
 }
 
 ListBucketResult*
-oss_ListBucketResult(const char* xml)
+oss_ListBucketResult(const char *xml)
 {
   xmlDocPtr doc;
   xmlNodePtr root;
@@ -369,13 +374,13 @@ oss_ListBucketResult(const char* xml)
   doc = xmlReadMemory(xml, strlen(xml), "noname.xml", NULL, 0);
   assert(doc!=NULL);
   root = xmlDocGetRootElement(doc);
-  ListBucketResult* result = getListBucketResult(root);
+  ListBucketResult *result = getListBucketResult(root);
   xmlFreeDoc(doc);
   return result;
 }
 
 M_str
-oss_GetBucketAcl(const char* xml)
+oss_GetBucketAcl(const char *xml)
 {
   xmlDocPtr doc;
   xmlNodePtr root;
@@ -397,7 +402,7 @@ oss_GetBucketAcl(const char* xml)
   return result;
 }
 void
-free_Contents(Contents* content)
+free_Contents(Contents *content)
 {
   xmlFree(content->etag);
   xmlFree(content->key);
@@ -410,7 +415,7 @@ free_Contents(Contents* content)
 }
 
 void
-free_ListBucketResult(ListBucketResult* result)
+free_ListBucketResult(ListBucketResult *result)
 {
   xmlFree(result->istruncated);
   xmlFree(result->delimiter);
@@ -432,24 +437,24 @@ free_ListBucketResult(ListBucketResult* result)
 }
 
 void
-free_Bucket(struct Bucket* bucket)
+free_Bucket(struct Bucket *bucket)
 {
   xmlFree(bucket->name);
   xmlFree(bucket->creationDate);
   free(bucket);
 }
 void
-free_Owner(struct Owner* owner)
+free_Owner(struct Owner *owner)
 {
   xmlFree(owner->id);
   xmlFree(owner->displayName);
   free(owner);
 }
 
-size_t oss_GetObjectSize(const char* httpheader){
+size_t oss_GetObjectSize(const char *httpheader){
   char *str1, *str2, *token, *subtoken;
    char *savePtr1, *savePtr2;
-   char* content_length;
+   char *content_length;
    size_t content_size;
    for (str1 = httpheader;; str1 = NULL )
        {

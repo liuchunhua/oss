@@ -1,4 +1,4 @@
-/*
+    /*
  * oss.c
  *
  *  Created on: 2012-10-7
@@ -189,8 +189,8 @@ http_request(OSSPtr oss, const char* method, const char* requestresource,
         }
       listFree(list);
       curl_easy_setopt(curl, CURLOPT_URL, url);
-      curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
-      curl_easy_setopt(curl, CURLOPT_NOPROGRESS, 1L);
+      curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L); curl_easy_setopt(curl, CURLOPT_NOPROGRESS, 1L);
+     
       if (strcasestr(method, "put") != NULL )
         {
           curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, method);

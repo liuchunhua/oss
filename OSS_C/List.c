@@ -46,15 +46,20 @@ int listDel(List data){
 }
 
 void listFree(List head){
+	listDestroy(head, NULL);
+}
+
+void listDestroy(List head, void (*free_fun)(void *)){
 	List node = head->next;
 	while(head&&node!=head){
 		List t = node->next;
+		if(free_fun != NULL)
+			(*free_fun)(node->ptr);
 		free(node);
 		node = t;
 	}
 	free(head);
 }
-
 int listIsEmpty(List head){
 	return head == head->next;
 }
@@ -70,7 +75,7 @@ void listFreeObject(List head){
 void listFreeObjectByFun(List head,void (*fun)(void*)){
         List node = head->next;
         while(node&&node!=head){
-                fun(node->ptr);
+                (*fun)(node->ptr);
                 node = node->next;
         }
 }

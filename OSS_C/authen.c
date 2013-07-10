@@ -1,14 +1,10 @@
-/*
- author:lch
- */
+#include <string.h>
 #include <stdlib.h>
 
-#include "authen.h"
-#include "ossutil.h"
 #include "List.h"
+#include "HashTable.h"
 #include "String.h"
 
-//按字母顺序升序排列,合并相同
 static void
 sort_list_asc(List ls)
 {

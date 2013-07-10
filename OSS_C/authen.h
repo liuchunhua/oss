@@ -2,8 +2,8 @@
  OSS验证
  author:lch
  */
-#ifndef _AUTHEN.H
-#define _AUTHEN.H
+#ifndef AUTHEN_H_
+#define AUTHEN_H_
 
 #include "HashTable.h"
 

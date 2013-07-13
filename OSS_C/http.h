@@ -12,13 +12,31 @@
 
 #include "HashTable.h"
 
+typedef struct
+{
+	char *blk;
+	size_t size;
+}MemBlk;
+
+typedef struct
+{
+	MemBlk *(*init)();
+	void (*destroy)(MemBlk *);
+}MemBlkOpration;
+
+MemBlk *memblk_init();
+void memblk_destroy(MemBlk *mem);
+
+MemBlkOpration MemBlkClass = {
+		.init = memblk_init,
+		.destroy = memblk_destroy
+	};
+
 struct HttpResponse
 {
 	size_t code;
-	char *header;
-	size_t header_len;
-	char *body;
-	size_t body_len;
+	MemBlk *header;
+	MemBlk *body;
 };
 
 typedef struct HttpResponse HttpResponse;

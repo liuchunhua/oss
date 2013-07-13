@@ -1,10 +1,33 @@
 #include "http.h"
 
+MemBlk *memblk_init()
+{
+	MemBlk *mem = malloc(sizeof(MemBlk));
+	if(mem)
+	{
+		mem->blk = malloc(512);
+		memset(mem->blk, 0x0, 512);
+		mem->size = 0;
+	}
+    return mem;
+}
+
+void memblk_destroy(MemBlk *mem)
+{
+	if(mem)
+	{
+		if(mem->blk)
+			free(mem->blk);
+		free(mem);
+	}
+}
 HttpResponse *
 http_response_init()
 {
   HttpResponse *httpresponse = malloc(sizeof(HttpResponse));
   memset(httpresponse, 0x0, sizeof(HttpResponse));
+  httpresponse->header = MemBlkClass.init();
+  httpresponse->body = MemBlkClass.init();
   return httpresponse;
 }
 
@@ -15,11 +38,11 @@ http_response_destroy(HttpResponse *httpresponse)
     {
       if (httpresponse->header)
         {
-          free(httpresponse->header);
+          MemBlkClass.destroy(httpresponse->header);
         }
       if (httpresponse->body)
         {
-          free(httpresponse->body);
+          MemBlkClass.destroy(httpresponse->body);
         }
       free(httpresponse);
     }

@@ -25,7 +25,7 @@ canonicalizedResource(const char * resource);
 
  */
 char *
-oss_authorizate(const char *key, const char *method, const char *headers,
+oss_authorizate(const char *key, const char *method, HashTable *headers,
     const char* resource);
 
 #endif

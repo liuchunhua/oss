@@ -67,3 +67,52 @@ void log_stat(struct stat *stat){
 	log_struct(stat, st_mtime, 0x%08lx, );
 	log_struct(stat, st_ctime, 0x%08lx, );
 }
+
+
+void logger_debug(const char *format, ...)
+{
+	if(Logger.level == 0){
+		va_list op;
+		va_start(op, format);
+		fprintf(logfile, "[DEBUG] %s:%d",__FILE__, __LINE__);
+		vfprintf(logfile, format, op);
+		fprintf(logfile,"\n");
+	}
+}
+
+
+void logger_info(const char *format, ...)
+{
+	if(Logger.level <= 1){
+		va_list op;
+		va_start(op, format);
+		fprintf(logfile, "[INFO] %s:%d",__FILE__, __LINE__);
+		vfprintf(logfile, format, op);
+		fprintf(logfile,"\n");
+	}
+}
+
+void logger_warn(const char *format, ...)
+{
+	if(Logger.level <= 2)
+	{
+		va_list op;
+		va_start(op, format);
+		fprintf(logfile, "[WARN] %s:%d",__FILE__, __LINE__);
+		vfprintf(logfile, format, op);
+		fprintf(logfile,"\n");
+	}
+}
+
+
+void logger_error(const char *format, ...)
+{
+	if(Logger.level <= 3)
+	{
+		va_list op;
+		va_start(op, format);
+		fprintf(logfile, "[ERROR] %s:%d",__FILE__, __LINE__);
+		vfprintf(logfile, format, op);
+		fprintf(logfile,"\n");
+	}
+}

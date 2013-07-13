@@ -4,8 +4,11 @@
 		下载文件。
 		上传文件。
 */
+#ifndef OSS_HTTP_H_
+#define OSS_HTTP_H_
 
 #include "http.h"
+#include "oss.h"
 
 typedef struct{
 	HttpResponse *(*request)(HttpRequest *, OSSPtr);
@@ -28,4 +31,4 @@ OSSHttpOpration OSSHttpClass = {
 };
 
 
-
+#endif

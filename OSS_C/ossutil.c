@@ -1,8 +1,8 @@
 /*
-  *ossutil.c
+ *ossutil.c
  *
-  * Created on: 2012-9-22
-  *     Author: lch
+ * Created on: 2012-9-22
+ *     Author: lch
  */
 
 #include "ossutil.h"
@@ -19,9 +19,6 @@
 #include <libxml/xmlmemory.h>
 #include <libxml/parser.h>
 
-#define GetNodeValue(node,structure,member) 			if(node->type==XML_ELEMENT_NODE&&!strcasecmp((char*)node->name,#member)){ \
-															structure->member = (char*)xmlNodeGetContent(node); \
-														}
 
 M_str
 localtime_gmt()
@@ -36,52 +33,62 @@ localtime_gmt()
 time_t
 StrGmtToLocaltime(const char *s)
 {
-  int i=0;
-  char week[4]={};
-  char month[4]={};
-  char *weeks[7] = {"Sun","Mon","Tue","Wed","Thu","Fri","Sat"};
-  char *monthes[12] = {"Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"};
+  int i = 0;
+  char week[4] =
+    { };
+  char month[4] =
+    { };
+  char *weeks[7] =
+    { "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat" };
+  char *monthes[12] =
+    { "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct",
+        "Nov", "Dec" };
   struct tm t;
-  memset(&t,0x0,sizeof(struct tm));
+  memset(&t, 0x0, sizeof(struct tm));
   //Wed, 05 Dec 2012 14:26:10 GMT
-  sscanf(s,"%[^,],%d %s %d %d:%d:%d GMT",week,&(t.tm_mday),month,&(t.tm_year),&(t.tm_hour),&(t.tm_min),&(t.tm_sec));
+  sscanf(s, "%[^,],%d %s %d %d:%d:%d GMT", week, &(t.tm_mday), month,
+      &(t.tm_year), &(t.tm_hour), &(t.tm_min), &(t.tm_sec));
   t.tm_year -= 1900;
-  for(i=0;i<7;i++){
-      if(strcmp(week,weeks[i])==0)
+  for (i = 0; i < 7; i++)
+    {
+      if (strcmp(week, weeks[i]) == 0)
         break;
-  }
-  if(i!=7)
+    }
+  if (i != 7)
     t.tm_wday = i;
-  for(i=0;i<12;i++){
-      if(strcmp(month,monthes[i])==0)
+  for (i = 0; i < 12; i++)
+    {
+      if (strcmp(month, monthes[i]) == 0)
         break;
-  }
-  if(i!=12)
+    }
+  if (i != 12)
     t.tm_mon = i;
-  return mktime(&t)-timezone;
+  return mktime(&t) - timezone;
 }
 /*
-  *2012-09-28T14:34:25.000Z
+ *2012-09-28T14:34:25.000Z
  */
 time_t
 GmtToLocaltime(const char *s)
 {
   struct tm t;
-  sscanf(s,"%d-%d-%dT%d:%d:%d.000Z",&t.tm_year,&t.tm_mon,&t.tm_mday,&t.tm_hour,&t.tm_min,&t.tm_sec);
+  sscanf(s, "%d-%d-%dT%d:%d:%d.000Z", &t.tm_year, &t.tm_mon, &t.tm_mday,
+      &t.tm_hour, &t.tm_min, &t.tm_sec);
   t.tm_year -= 1900;
   t.tm_mon -= 1;
-  return mktime(&t)-timezone;
+  return mktime(&t) - timezone;
 }
 /*
-  *@description: 加密，编码
-  *@param:	string 需要加密的字符串
-  *@param:	len string的长度
-  *@param:	key 密钥
-  *@param:	key_len 密钥长度
-  *@return:	加密后字符串
+ *@description: 加密，编码
+ *@param:	string 需要加密的字符串
+ *@param:	len string的长度
+ *@param:	key 密钥
+ *@param:	key_len 密钥长度
+ *@return:	加密后字符串
  */
 
-char *hmac_base64(const char *string, int len, const char *key, int key_len)
+char *
+hmac_base64(const char *string, size_t len, const char *key, int key_len)
 {
 //	HMAC_CTX ctx;
   unsigned int out_len = 0;
@@ -91,12 +98,13 @@ char *hmac_base64(const char *string, int len, const char *key, int key_len)
 //	HMAC_Update(&ctx,string,len);
 //	HMAC_Final(&ctx,oss_buf,&out_len);
 //	HMAC_CTX_cleanup(&ctx);
-  HMAC(EVP_sha1(), key, key_len, string, len, oss_buf, &out_len);
+  HMAC(EVP_sha1(), key, key_len, (const unsigned char *)string, len, ( unsigned char *)oss_buf, &out_len);
   return strdup(base64_encode(oss_buf, out_len));
 
 }
 
-Owner *getOwner(xmlNodePtr node)
+static Owner *
+getOwner(xmlNodePtr node)
 {
   if (!strcmp((char*) node->name, "Owner"))
     {
@@ -113,24 +121,7 @@ Owner *getOwner(xmlNodePtr node)
     }
   return NULL ;
 }
-static struct Bucket*
-getBucket(xmlNodePtr node)
-{
-  if (!strcmp((char*) node->name, "Bucket"))
-    {
-      xmlNodePtr cur = node->children;
-      struct Bucket *bucket = BucketClass.init();
-      assert(bucket!=NULL);
-      while (cur)
-        {
-          GetNodeValue(cur, bucket, name);
-          GetNodeValue(cur, bucket, creationDate);
-          cur = cur->next;
-        }
-      return bucket;
-    }
-  return NULL ;
-}
+
 static Contents*
 getContents(xmlNodePtr node)
 {
@@ -138,7 +129,7 @@ getContents(xmlNodePtr node)
     {
       xmlNodePtr cur = node->children;
       Contents *contents = (Contents*) malloc(sizeof(Contents));
-      memset(contents,0x0,sizeof(Contents));
+      memset(contents, 0x0, sizeof(Contents));
       while (cur)
         {
           GetNodeValue(cur, contents, key);
@@ -166,7 +157,7 @@ getCommonPrefixes(xmlNodePtr node)
 
       while (cur)
         {
-          if(cur->type== XML_ELEMENT_NODE)
+          if (cur->type == XML_ELEMENT_NODE)
             listAdd(list, xmlNodeGetContent(cur));
           cur = cur->next;
         }
@@ -207,32 +198,11 @@ getListBucketResult(xmlNodePtr node)
           cur = cur->next;
         }
       lbr->contents = con_list;
-      if(!lbr->commonprefixes)
+      if (!lbr->commonprefixes)
         lbr->commonprefixes = pre_list;
       else
         listFree(pre_list);
       return lbr;
-    }
-  return NULL ;
-}
-List getListBucket(xmlNodePtr node)
-{
-  if (!strcmp((char*) node->name, "Buckets"))
-    {
-      xmlNodePtr cur = node->children;
-      List list = listInit();
-      while (cur)
-        {
-          if (cur->type == XML_ELEMENT_NODE
-              && !strcmp((char*) cur->name, "Bucket"))
-            {
-              struct Bucket *bucket = getBucket(cur);
-              if (bucket)
-                listAdd(list, bucket);
-            }
-          cur = cur->next;
-        }
-      return list;
     }
   return NULL ;
 }
@@ -287,7 +257,7 @@ sort_list_asc(List ls)
     }
 }
 
-M_str
+static M_str
 oss_authorizate(const char *key, const char *method, struct HashTable *headers,
     const char *resource)
 {
@@ -312,15 +282,15 @@ oss_authorizate(const char *key, const char *method, struct HashTable *headers,
   strcat(buf, "\n");
   strcat(buf, date);
   strcat(buf, "\n");
-  List list = hash_table_get_key_list(headers);
+  List list = hash_table_get_all(headers);
   sort_list_asc(list);
   List node;
   for_each(node,list)
     {
       struct pair *p = (struct pair*) node->ptr;
       if (strcasestr((char*) (p->key), "x-oss-") != NULL
-           // override 查询字符
-          || strcasestr((char*) (p->key), "response") != NULL )
+      // override 查询字符
+      || strcasestr((char*) (p->key), "response") != NULL )
         {
           strcat(buf, (char*) (p->key));
           strcat(buf, ":");
@@ -330,7 +300,7 @@ oss_authorizate(const char *key, const char *method, struct HashTable *headers,
     }
   listFree(list);
   strcat(buf, resource);
-  char  *code = hmac_base64(buf, strlen(buf), key, strlen(key));
+  char *code = hmac_base64(buf, strlen(buf), key, strlen(key));
   free(res);
   return code;
 }
@@ -357,7 +327,7 @@ oss_ListAllMyBucketsResult(const char *xml, struct Owner *owner)
         }
       if (strcmp((char*) cur->name, "Buckets") == 0)
         {
-          list = getListBucket(cur);
+//          list = getListBucket(cur);
         }
       cur = cur->next;
     }
@@ -451,26 +421,28 @@ free_Owner(struct Owner *owner)
   free(owner);
 }
 
-size_t oss_GetObjectSize(const char *httpheader){
+size_t
+oss_GetObjectSize(const char *httpheader)
+{
   char *str1, *str2, *token, *subtoken;
-   char *savePtr1, *savePtr2;
-   char *content_length;
-   size_t content_size;
-   for (str1 = httpheader;; str1 = NULL )
-       {
-         token = strtok_r(str1, "\n", &savePtr1);
-         if (token == NULL )
-           break;
-         if (strcasestr(token, "content-length") == NULL )
-           continue;
-         for (str2 = token;; str2 = NULL )
-           {
-             subtoken = strtok_r(str2, ":", &savePtr2);
-             if (subtoken == NULL )
-               break;
-             content_length = subtoken;
-           }
-       }
-     content_size = atol(content_length);
-     return content_size;
+  char *savePtr1, *savePtr2;
+  char *content_length;
+  size_t content_size;
+  for (str1 = httpheader;; str1 = NULL )
+    {
+      token = strtok_r(str1, "\n", &savePtr1);
+      if (token == NULL )
+        break;
+      if (strcasestr(token, "content-length") == NULL )
+        continue;
+      for (str2 = token;; str2 = NULL )
+        {
+          subtoken = strtok_r(str2, ":", &savePtr2);
+          if (subtoken == NULL )
+            break;
+          content_length = subtoken;
+        }
+    }
+  content_size = atol(content_length);
+  return content_size;
 }

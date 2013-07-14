@@ -16,6 +16,13 @@
 #include "String.h"
 #include "HashTable.h"
 
+
+OSSHttpOpration OSSHttpClass = {
+        .request = oss_http_request,
+        .request_download = oss_http_request_download,
+        .request_upload = oss_http_request_upload
+};
+
 static size_t
 write_memory(void *buffer, size_t size, size_t nmemb, void *userp)
 {
@@ -26,7 +33,7 @@ write_memory(void *buffer, size_t size, size_t nmemb, void *userp)
   if (mem->blk == NULL )
     {
       /* out of blk! */
-      log_msg("not enough blk (realloc returned NULL)\n");
+      Logger.error("not enough blk (realloc returned NULL)\n");
       exit(EXIT_FAILURE);
     }
 
@@ -53,20 +60,28 @@ read_file(void *ptr, size_t size, size_t nmemb, void *stream)
 static void
 oss_http_request_init(HttpRequest *httprequest, OSSPtr oss)
 {
+
   const char *url = httprequest->url;
-  const char *method = httprequest->url;
+  const char *method = httprequest->method;
   char *date = localtime_gmt();
+
+  Logger.debug("date %s", date);
 
   if (httprequest->headers == NULL )
     {
       httprequest->headers = HashTableClass.init();
+      Logger.debug("init request header");
     }
 
   HashTableClass.put(httprequest->headers, "Date", date);
+  HashTableClass.put(httprequest->headers, "Content-Type", "text/plain");
 
+  Logger.debug("计算验证码");
   char *key = oss_authorizate(oss->access_key, method, httprequest->headers,
       url);
+
   char *auth = StringClass.concat(4, "OSS ", oss->access_id, ":", key);
+  Logger.debug("Authorization : %s", auth);
   HashTableClass.put(httprequest->headers, "Authorization", auth);
   free(key);
 }
@@ -78,8 +93,9 @@ curl_chunk_init(struct curl_slist *chunk, HttpRequest * request)
   for_each(node, list)
     {
       struct pair *p = node->ptr;
-      curl_slist_append(chunk,
-          StringClass.concat(3, (char *) p->key, ":", (char *) p->value));
+      char *s = StringClass.concat(3, (char *) p->key, ":", (char *) p->value);
+      Logger.debug("%s", s);
+      chunk = curl_slist_append(chunk, s);
     }
   ListClass.destroy(list);
 }
@@ -95,18 +111,21 @@ oss_http_request(HttpRequest *httprequest, OSSPtr oss)
 
   curl = curl_easy_init();
 
+  Logger.debug("curl start");
   if (curl)
     {
       char *method = httprequest->method;
       struct curl_slist *chunk = NULL;
-
-      curl_chunk_init(chunk, httprequest);
 
       url = StringClass.concat(2, oss->host, httprequest->url);
       curl_easy_setopt(curl, CURLOPT_URL, url);
       curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
       curl_easy_setopt(curl, CURLOPT_NOPROGRESS, 1L);
 
+      if(strcasecmp(method, "get") == 0)
+        {
+          curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "GET");
+        }
       if (strcasecmp(method, "put") == 0)
         {
           curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, method);
@@ -127,20 +146,27 @@ oss_http_request(HttpRequest *httprequest, OSSPtr oss)
         {
           curl_easy_setopt(curl, CURLOPT_PROXY, oss->proxy);
         }
-      res = curl_easy_setopt(curl, CURLOPT_HTTPHEADER, chunk);
+      Logger.debug("http header init");
+      chunk = curl_slist_append(chunk, "Content-Length:0");
+      curl_chunk_init(chunk, httprequest);
+      Logger.debug("http header done");
+
+      curl_easy_setopt(curl, CURLOPT_HTTPHEADER, chunk);
       response = HttpResponseClass.init();
 
       curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_memory);
       curl_easy_setopt(curl, CURLOPT_WRITEHEADER, (void * )response->header);
       curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void * )response->body);
 
+      Logger.debug("%s %s", method, url);
       res = curl_easy_perform(curl);
+      Logger.debug("return code %d", res);
       curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &(response->code));
       if (res != CURLE_OK)
         {
           strcat((char *) response->body->blk, curl_easy_strerror(res));
         }
-
+      Logger.debug("body:\n%s", response->body->blk);
       free(url);
       curl_slist_free_all(chunk);
       curl_easy_cleanup(curl);

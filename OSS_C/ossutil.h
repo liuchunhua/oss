@@ -16,7 +16,11 @@
 #include "service.h"
 
 #define OSS_LEN 50
+
 #define OSS_TIME_FORMAT "%a, %d %b %Y %H:%M:%S GMT"
+
+#define GetNodeValue(node,structure,member)  if(node->type==XML_ELEMENT_NODE&&!strcasecmp((char*)node->name,#member)){ \
+                                                                                                                        structure->member = (char*)xmlNodeGetContent(node);}
 
 typedef struct
 {
@@ -78,20 +82,8 @@ time_t
 GmtToLocaltime(const char *s);
 
 char *
-hmac_base64(const char *string, int len, const char *key, int key_len);
+hmac_base64(const char *string, size_t len, const char *key, int key_len);
 
-/*
- *@description:身份验证
- *@param:	key	AccessKey
- *@param:	method	http GET、PUT、POST
- *@param:	headers	必须包含"Date","CanonicalizedResource"
- *@param:	resource 获取的资源
- *@return
- */
-
-M_str
-oss_authorizate(const char *key, const char *method, struct HashTable *headers,
-    const char *resource);
 
 /*
  *@description:得到所有buckets
@@ -115,12 +107,6 @@ oss_GetBucketAcl(const char *xml);
  */
 size_t
 oss_GetObjectSize(const char *httpheader);
-
-Owner *
-getOwner(xmlNodePtr node);
-
-List
-getListBucket(xmlNodePtr node);
 
 char *
 http_request(OSS *oss, const char *url, const char *method);

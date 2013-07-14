@@ -60,8 +60,7 @@ listFree(List head);
  *  释放表和数据
  */
 void
-ListDestroy(List head, void
-(*free_fun)(void *));
+listDestroy(List head, void(*free_fun)(void *));
 /**
  *
  */
@@ -75,8 +74,5 @@ listFreeObject(List head);
 void
 listFreeObjectByFun(List head, void
 (*fun)(void*));
-
-ListOpration ListClass =
-  { .init = listInit, .add = listAdd, .del = listDel, .destroy = listFree,
-      .destroy_fun = listFreeObjectByFun };
+ListOpration ListClass;
 #endif /* LIST_H_ */

@@ -1,5 +1,17 @@
 #include "http.h"
 
+MemBlkOpration MemBlkClass = {
+                .init = memblk_init,
+                .destroy = memblk_destroy
+        };
+HttpResponseOpration HttpResponseClass = {
+        .init = http_response_init,
+        .destroy = http_response_destroy
+};
+HttpRequestOpration HttpRequestClass = {
+        .init = http_request_init,
+        .destroy = http_request_destroy
+};
 MemBlk *memblk_init()
 {
 	MemBlk *mem = malloc(sizeof(MemBlk));

@@ -12,6 +12,17 @@
 #include <stdlib.h>
 #include <assert.h>
 
+HashTableOpration HashTableClass = {
+        .init = hash_table_init,
+        .init_size = hash_table_init_size,
+        .destroy = hash_table_free,
+        .destroy_fun = hash_table_free_fun,
+        .put = hash_table_put,
+        .get = hash_table_get,
+        .get_list = hash_table_get_list,
+        .get_all = hash_table_get_all
+};
+
 static void free_pair(struct pair *p){
 	if(p){
 		free(p->key);
@@ -99,7 +110,10 @@ List hash_table_get_list(struct HashTable *table,const char *key)
 	}
 
 }
-
+List hash_table_get_key_list(struct HashTable *table)
+{
+  return hash_table_get_all(table);
+}
 List hash_table_get_all(struct HashTable *table) {
 	int i = 0;
 	List list = listInit();

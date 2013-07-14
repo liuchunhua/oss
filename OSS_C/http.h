@@ -2,6 +2,9 @@
 
 */
 
+#ifndef HTTP_H_
+#define HTTP_H_
+
 #include <curl/curl.h>
 #include <string.h>
 #include <stdlib.h>
@@ -27,19 +30,14 @@ typedef struct
 MemBlk *memblk_init();
 void memblk_destroy(MemBlk *mem);
 
-MemBlkOpration MemBlkClass = {
-		.init = memblk_init,
-		.destroy = memblk_destroy
-	};
+extern MemBlkOpration MemBlkClass;
 
-struct HttpResponse
+typedef struct
 {
 	size_t code;
 	MemBlk *header;
 	MemBlk *body;
-};
-
-typedef struct HttpResponse HttpResponse;
+}HttpResponse;
 typedef struct{
 	HttpResponse *(*init)();
 	void (*destroy)(HttpResponse *);
@@ -48,10 +46,7 @@ typedef struct{
 HttpResponse *http_response_init();
 void http_response_destroy(HttpResponse *httpresponse);
 
-HttpResponseOpration HttpResponseClass = {
-	.init = http_response_init,
-	.destroy = http_response_destroy
-};
+extern HttpResponseOpration HttpResponseClass;
 
 typedef struct{
 	char *method;
@@ -66,7 +61,6 @@ typedef struct{
 
 HttpRequest *http_request_init();
 void http_request_destroy(HttpRequest *httprequest);
-HttpRequestOpration HttpRequestClass = {
-	.init = http_request_init,
-	.destroy = http_request_destroy
-};
+extern HttpRequestOpration HttpRequestClass;
+
+#endif

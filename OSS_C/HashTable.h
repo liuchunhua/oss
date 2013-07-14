@@ -61,17 +61,10 @@ List hash_table_get_list(struct HashTable *table,const char *key);
 
 //获得所有key-value
 List hash_table_get_all(struct HashTable *table);
+List hash_table_get_key_list(struct HashTable *table);
 
 void hash_table_free(struct HashTable *table);
 void hash_table_free_fun(HashTable *table, void (*free)(void *));
 
-HashTableOpration HashTableClass = {
-	.init = hash_table_init,
-	.init_size = hash_table_init_size,
-	.destroy = hash_table_free,
-	.destroy_fun = hash_table_free_fun,
-	.get = hash_table_get,
-	.get_list = hash_table_get_list,
-	.get_all = hash_table_get_all
-};
+extern HashTableOpration HashTableClass;
 #endif /* HASHTABLE_H_ */

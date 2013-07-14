@@ -15,6 +15,16 @@
 #define OWNER "Owner"
 #define BUCKETS "Buckets"
 
+BucketsResultOpration BucketsResultClass =
+  { .init = bucket_result_init, .parse = bucket_result_parse, .destroy =
+      bucket_result_destroy };
+
+BucketOpration BucketClass =
+  { .init = bucket_init, .destroy = bucket_destroy };
+
+OwnerOpration OwnerClass =
+  { .init = owner_init, .destroy = owner_destroy };
+
 Bucket *
 bucket_init()
 {
@@ -51,6 +61,67 @@ owner_destroy(Owner *owner)
   free(owner);
 }
 
+static Owner *
+getOwner(xmlNodePtr node)
+{
+  if (!strcmp((char*) node->name, "Owner"))
+    {
+      xmlNodePtr cur = node->children;
+      Owner *owner = OwnerClass.init();
+      assert(owner!=NULL);
+      while (cur)
+        {
+          GetNodeValue(cur, owner, id);
+          GetNodeValue(cur, owner, displayName);
+          cur = cur->next;
+        }
+      return owner;
+    }
+
+  return NULL ;
+}
+
+static struct Bucket*
+getBucket(xmlNodePtr node)
+{
+  if (!strcmp((char*) node->name, "Bucket"))
+    {
+      xmlNodePtr cur = node->children;
+      struct Bucket *bucket = BucketClass.init();
+      assert(bucket!=NULL);
+      while (cur)
+        {
+          GetNodeValue(cur, bucket, name);
+          GetNodeValue(cur, bucket, creationDate);
+          cur = cur->next;
+        }
+      return bucket;
+    }
+  return NULL ;
+}
+
+static List
+getListBucket(xmlNodePtr node)
+{
+  if (!strcmp((char*) node->name, "Buckets"))
+    {
+      xmlNodePtr cur = node->children;
+      List list = listInit();
+      while (cur)
+        {
+          if (cur->type == XML_ELEMENT_NODE
+              && !strcmp((char*) cur->name, "Bucket"))
+            {
+              struct Bucket *bucket = getBucket(cur);
+              if (bucket)
+                listAdd(list, bucket);
+            }
+          cur = cur->next;
+        }
+      return list;
+    }
+  return NULL ;
+}
 BucketsResult *
 bucket_result_init()
 {
@@ -71,7 +142,8 @@ bucket_result_destroy(BucketsResult *bucket_result)
         OwnerClass.destroy(bucket_result->owner);
       if (bucket_result->buckets)
         {
-          ListClass.destroy_fun(bucket_result->buckets, (void (*)(void *))BucketClass.destroy);
+          ListClass.destroy_fun(bucket_result->buckets, (void
+          (*)(void *)) BucketClass.destroy);
         }
       free(bucket_result);
     }
@@ -110,6 +182,7 @@ bucket_result_parse(const char *xml)
               result->buckets = list;
             }
         }
+      cur = cur->next;
     }
 
   return result;

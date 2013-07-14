@@ -9,6 +9,14 @@
 
 static FILE *logfile;
 
+LoggerOpration Logger = {
+        .level = 0,
+        .debug = logger_debug,
+        .info = logger_info,
+        .warn = logger_warn,
+        .error = logger_error
+};
+
 FILE *log_open(){
 
 	logfile = fopen("hello.log","w");

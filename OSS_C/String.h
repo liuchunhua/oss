@@ -59,16 +59,7 @@ char *toUppercase(const char *str);
 char*
 concat(int i, ...);
 
-StringOpation StringClass = {
-    .init = new_string,
-    .destroy = free_string,
-    .indexOf = indexOf,
-    .lastIndexOf = lastIndexOf,
-    .substring = substring,
-    .concat = concat,
-    .toLowercase = toLowcase,
-    .toUppercase = toUppercase
-};
+extern StringOpation StringClass;
 
 #endif /* STRING_H_ */
 /*concat all string*/

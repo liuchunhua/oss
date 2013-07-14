@@ -24,11 +24,7 @@ HttpResponse *oss_http_request_download(HttpRequest *httprequest, \
 HttpResponse *oss_http_request_upload(HttpRequest *httprequest, \
 									OSSPtr oss, char *path);
 
-OSSHttpOpration OSSHttpClass = {
-	.request = oss_http_request,
-	.request_download = oss_http_request_download,
-	.request_upload = oss_http_request_upload
-};
+extern OSSHttpOpration OSSHttpClass;
 
 
 #endif

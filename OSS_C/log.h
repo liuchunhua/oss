@@ -37,13 +37,7 @@ void logger_warn(const char *format, ...);
 void logger_error(const char *format, ...);
 
 
-LoggerOpration Logger = {
-	.level = 0,
-	.debug = logger_debug,
-	.info = logger_info,
-	.warn = logger_warn,
-	.error = logger_error
-};
+extern LoggerOpration Logger;
 
 FILE *log_open(void);
 void log_close();

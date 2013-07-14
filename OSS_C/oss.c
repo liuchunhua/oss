@@ -5,10 +5,6 @@
  *      Author: lch
  */
 
-#include "oss.h"
-#include "ossutil.h"
-#include "String.h"
-
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -21,6 +17,16 @@
 #ifdef DEBUG
 #include <syslog.h>
 #endif
+
+
+#include "oss.h"
+#include "ossutil.h"
+#include "String.h"
+#include "service.h"
+#include "http.h"
+#include "oss_http.h"
+#include "log.h"
+
 
 struct HttpResponse
 {
@@ -138,8 +144,10 @@ response_init()
   response->header->size = 0;
   return response;
 }
+
+/*此方法已放弃，使用oss_http.h*/
 static struct HttpResponse*
-http_request(OSSPtr oss, const char* method, const char* requestresource,
+http_request_old(OSSPtr oss, const char* method, const char* requestresource,
     struct HashTable* headers)
 {
   CURL *curl;
@@ -626,18 +634,24 @@ oss_init(const char* host, const char* id, const char* key)
 List
 GetService(OSSPtr oss)
 {
-  struct HttpResponse* response;
-  char* method = "GET";
-  char* resource = "/";
-  response = http_request(oss, method, resource, NULL );
+  HttpResponse* response;
+  HttpRequest *request = HttpRequestClass.init();
+  Logger.debug("request init");
+  request->method = strdup("GET");
+  request->url = strdup("/");
+  Logger.debug(request->method);
+  Logger.debug("http requst");
+  response = OSSHttpClass.request(request, oss);
   if (response && response->code == 200)
     {
-      List list = oss_ListAllMyBucketsResult(response->body->memory, NULL );
-      free_http_response(response);
-      return list;
+      Logger.debug(response->body->blk);
+      BucketsResult *result = bucket_result_parse(response->body->blk);
+      HttpResponseClass.destroy(response);
+      return result->buckets;
     }
   if (response)
-    free_http_response(response);
+    HttpResponseClass.destroy(response);
+  HttpRequestClass.destroy(request);
   return NULL ;
 }
 
@@ -652,7 +666,7 @@ PutBucket(OSSPtr oss, char* bucket)
   if ('/' != *bucket)
     strcat(buf, "/");
   resource = strcat(buf, bucket);
-  response = http_request(oss, method, resource, NULL );
+  response = http_request_old(oss, method, resource, NULL );
   if (response && response->code == 200)
     {
       return EXIT_SUCCESS;
@@ -686,7 +700,7 @@ PutBucketACL(OSSPtr oss, char* bucket, ACL a)
   char* permission = acl[a];
   struct HashTable* table = hash_table_init();
   hash_table_put(table, "x-oss-acl", permission);
-  struct HttpResponse* response = http_request(oss, method, resource, table);
+  struct HttpResponse* response = http_request_old(oss, method, resource, table);
 
   if (response->code == 200)
     return EXIT_SUCCESS;
@@ -761,7 +775,7 @@ ListObject(OSSPtr oss,const char* bucket, const char* prefix, unsigned int maxke
           strcat(buf, (char*) p->value);
         }
     }
-  struct HttpResponse* response = http_request(oss, method, resource, NULL );
+  struct HttpResponse* response = http_request_old(oss, method, resource, NULL );
   if (response->code == 200)
     {
       result = oss_ListBucketResult(response->body->memory);
@@ -788,7 +802,7 @@ GetBucketACL(OSSPtr oss, char* bucket)
     strcat(buf, "/");
   strcat(buf, bucket);
   strcat(buf, "?acl");
-  struct HttpResponse* response = http_request(oss, "GET", buf, NULL );
+  struct HttpResponse* response = http_request_old(oss, "GET", buf, NULL );
   if (response->code == 200)
     {
       M_str result = oss_GetBucketAcl(response->body->memory);
@@ -822,7 +836,7 @@ DeleteBucket(OSSPtr oss, char* bucket)
   if ('/' != *bucket)
     strcat(buf, "/");
   resource = strcat(buf, bucket);
-  response = http_request(oss, method, resource, NULL );
+  response = http_request_old(oss, method, resource, NULL );
   if (response && response->code == 200)
     {
       return EXIT_SUCCESS;
@@ -914,7 +928,7 @@ HeadObject(OSSPtr oss, const char* object)
 {
   struct HttpResponse* response;
   char* method = "HEAD";
-  response = http_request(oss, method, object, NULL );
+  response = http_request_old(oss, method, object, NULL );
   OSSObject* ossobject;
   if (response && response->header && response->code == 200)
     {
@@ -939,7 +953,7 @@ CopyObject(OSSPtr oss, char* source, char* des)
   char* method = "PUT";
   struct HashTable* table = hash_table_init();
   hash_table_put(table, "x-oss-copy-source", source);
-  struct HttpResponse* response = http_request(oss, method, des, table);
+  struct HttpResponse* response = http_request_old(oss, method, des, table);
   if (response->code == 200)
     return EXIT_SUCCESS;
   else
@@ -959,7 +973,7 @@ DeleteObject(OSSPtr oss, char* object)
   if ('/' != *object)
     strcat(buf, "/");
   resource = strcat(buf, object);
-  response = http_request(oss, method, resource, NULL );
+  response = http_request_old(oss, method, resource, NULL );
   if (response && response->code == 200)
     {
       return EXIT_SUCCESS;

@@ -72,14 +72,10 @@ bucket_result_init();
 void
 bucket_result_destroy(BucketsResult *bucket_result);
 
-BucketsResultOpration BucketsResultClass =
-  { .init = bucket_result_init, .parse = bucket_result_parse, .destroy =
-      bucket_result_destroy };
+BucketsResultOpration BucketsResultClass;
 
-BucketOpration BucketClass =
-  { .init = bucket_init, .destroy = bucket_destroy };
+BucketOpration BucketClass;
 
-OwnerOpration OwnerClass =
-  { .init = owner_init, .destroy = owner_destroy };
+OwnerOpration OwnerClass;
 
 #endif

@@ -13,6 +13,17 @@
 
 #include "String.h"
 
+extern StringOpation StringClass = {
+    .init = new_string,
+    .destroy = free_string,
+    .indexOf = indexOf,
+    .lastIndexOf = lastIndexOf,
+    .substring = substring,
+    .concat = concat,
+    .toLowercase = toLowcase,
+    .toUppercase = toUppercase
+};
+
 String*
 new_string()
 {

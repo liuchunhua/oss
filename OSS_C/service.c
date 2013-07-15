@@ -19,8 +19,6 @@ BucketsResultOpration BucketsResultClass =
   { .init = bucket_result_init, .parse = bucket_result_parse, .destroy =
       bucket_result_destroy };
 
-BucketOpration BucketClass =
-  { .init = bucket_init, .destroy = bucket_destroy };
 
 OwnerOpration OwnerClass =
   { .init = owner_init, .destroy = owner_destroy };

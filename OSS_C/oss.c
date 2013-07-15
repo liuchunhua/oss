@@ -1,4 +1,4 @@
-    /*
+/*
  * oss.c
  *
  *  Created on: 2012-10-7
@@ -18,7 +18,6 @@
 #include <syslog.h>
 #endif
 
-
 #include "oss.h"
 #include "ossutil.h"
 #include "String.h"
@@ -26,7 +25,20 @@
 #include "http.h"
 #include "oss_http.h"
 #include "log.h"
+#include "service.h"
+#include "oss_config.h"
 
+OSSOperation OSSClass =
+  { .init = oss_init, .destroy = free_ossptr };
+
+BucketOpration BucketClass =
+  {
+      .init = bucket_init,
+      .destroy = bucket_destroy,
+      .delete = DeleteBucket,
+      .put = PutBucket,
+      .putAcl = PutBucketACL
+  };
 
 struct HttpResponse
 {
@@ -197,8 +209,9 @@ http_request_old(OSSPtr oss, const char* method, const char* requestresource,
         }
       listFree(list);
       curl_easy_setopt(curl, CURLOPT_URL, url);
-      curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L); curl_easy_setopt(curl, CURLOPT_NOPROGRESS, 1L);
-     
+      curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
+      curl_easy_setopt(curl, CURLOPT_NOPROGRESS, 1L);
+
       if (strcasestr(method, "put") != NULL )
         {
           curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, method);
@@ -219,8 +232,8 @@ http_request_old(OSSPtr oss, const char* method, const char* requestresource,
         }
       res = curl_easy_setopt(curl, CURLOPT_HTTPHEADER, chunk);
       curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_memory);
-      curl_easy_setopt(curl, CURLOPT_WRITEHEADER, (void*)response->header);
-      curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void*)response->body);
+      curl_easy_setopt(curl, CURLOPT_WRITEHEADER, (void* )response->header);
+      curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void* )response->body);
 #ifdef DEBUG
       syslog(LOG_MAKEPRI(LOG_USER,LOG_WARNING), "curl perform\n");
 #endif
@@ -313,7 +326,7 @@ http_upload(OSSPtr oss, const char* method, const char* requestresource,
           curl_easy_setopt(curl, CURLOPT_READFUNCTION, read_callback);
           curl_easy_setopt(curl, CURLOPT_READDATA, hd_src);
           curl_easy_setopt(curl, CURLOPT_INFILESIZE_LARGE,
-              (curl_off_t)(fileinfo.st_size));
+              (curl_off_t )(fileinfo.st_size));
         }
       if (strcasestr(method, "post") != NULL )
         curl_easy_setopt(curl, CURLOPT_POST, 1L);
@@ -323,7 +336,7 @@ http_upload(OSSPtr oss, const char* method, const char* requestresource,
         }
       res = curl_easy_setopt(curl, CURLOPT_HTTPHEADER, chunk);
       curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_memory);
-      curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void*)response);
+      curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void* )response);
       res = curl_easy_perform(curl);
       fclose(hd_src);
       if (res == CURLE_OK)
@@ -427,7 +440,7 @@ http_download(OSSPtr oss, const char* method, const char* requestresource,
 
       res = curl_easy_setopt(curl, CURLOPT_HTTPHEADER, chunk);
       curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_data);
-      curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void*)file);
+      curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void* )file);
 //      curl_easy_setopt(curl, CURLOPT_RANGE, x_y);
       res = curl_easy_perform(curl);
       fclose(file);
@@ -523,7 +536,7 @@ http_download_memory(OSSPtr oss, const char* method,
 
       res = curl_easy_setopt(curl, CURLOPT_HTTPHEADER, chunk);
       curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_buf);
-      curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void*)block);
+      curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void* )block);
 //      curl_easy_setopt(curl, CURLOPT_RANGE, x_y);
       res = curl_easy_perform(curl);
       if (res == CURLE_OK)
@@ -647,7 +660,11 @@ GetService(OSSPtr oss)
       Logger.debug(response->body->blk);
       BucketsResult *result = bucket_result_parse(response->body->blk);
       HttpResponseClass.destroy(response);
-      return result->buckets;
+      List list = result->buckets;
+      if(result->owner)
+        OwnerClass.destroy(result->owner);
+      free(result);
+      return list;
     }
   if (response)
     HttpResponseClass.destroy(response);
@@ -700,7 +717,8 @@ PutBucketACL(OSSPtr oss, char* bucket, ACL a)
   char* permission = acl[a];
   struct HashTable* table = hash_table_init();
   hash_table_put(table, "x-oss-acl", permission);
-  struct HttpResponse* response = http_request_old(oss, method, resource, table);
+  struct HttpResponse* response = http_request_old(oss, method, resource,
+      table);
 
   if (response->code == 200)
     return EXIT_SUCCESS;
@@ -719,8 +737,8 @@ PutBucketACL(OSSPtr oss, char* bucket, ACL a)
 }
 
 ListBucketResult*
-ListObject(OSSPtr oss,const char* bucket, const char* prefix, unsigned int maxkeys,
-    const char* marker, const char* delimiter)
+ListObject(OSSPtr oss, const char* bucket, const char* prefix,
+    unsigned int maxkeys, const char* marker, const char* delimiter)
 {
   char* method = "GET";
   ListBucketResult* result;
@@ -775,7 +793,8 @@ ListObject(OSSPtr oss,const char* bucket, const char* prefix, unsigned int maxke
           strcat(buf, (char*) p->value);
         }
     }
-  struct HttpResponse* response = http_request_old(oss, method, resource, NULL );
+  struct HttpResponse* response = http_request_old(oss, method, resource,
+      NULL );
   if (response->code == 200)
     {
       result = oss_ListBucketResult(response->body->memory);

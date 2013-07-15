@@ -10,14 +10,12 @@
 
 #include "List.h"
 #include "ossutil.h"
+#include "oss_config.h"
 
 #include <stdio.h>
 
 
 
-typedef OSS* OSSPtr;
-
-typedef enum{RW,RO,PRIVATE} ACL;
 
 typedef struct OSSObject OSSObject;
 struct OSSObject{

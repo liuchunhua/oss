@@ -5,6 +5,8 @@
 #define SERVICE_H_
 
 #include "List.h"
+#include "oss_config.h"
+
 struct Bucket
 {
   char* name;
@@ -41,6 +43,9 @@ typedef struct
   (*init)();
   void
   (*destroy)(Bucket *);
+  int (*delete)(OSSPtr, char *);
+  int (*put)(OSSPtr, char *);
+  int (*putAcl)(OSSPtr, char *, ACL);
 } BucketOpration;
 
 typedef struct
@@ -72,10 +77,10 @@ bucket_result_init();
 void
 bucket_result_destroy(BucketsResult *bucket_result);
 
-BucketsResultOpration BucketsResultClass;
+extern BucketsResultOpration BucketsResultClass;
 
-BucketOpration BucketClass;
+extern BucketOpration BucketClass;
 
-OwnerOpration OwnerClass;
+extern OwnerOpration OwnerClass;
 
 #endif

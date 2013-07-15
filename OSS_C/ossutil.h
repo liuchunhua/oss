@@ -14,6 +14,7 @@
 #include "HashTable.h"
 #include "List.h"
 #include "service.h"
+#include "oss_config.h"
 
 #define OSS_LEN 50
 
@@ -21,14 +22,6 @@
 
 #define GetNodeValue(node,structure,member)  if(node->type==XML_ELEMENT_NODE&&!strcasecmp((char*)node->name,#member)){ \
                                                                                                                         structure->member = (char*)xmlNodeGetContent(node);}
-
-typedef struct
-{
-  char *host;
-  char *access_id;
-  char *access_key;
-  char *proxy;
-} OSS;
 
 typedef struct
 {

@@ -29,53 +29,40 @@ typedef struct
 
 typedef struct
 {
-  BucketsResult *
-  (*init)();
-  void
-  (*destroy)(BucketsResult *);
-  BucketsResult *
-  (*parse)(const char *);
+  BucketsResult *(*init)();
+  void (*destroy)(BucketsResult *);
+  BucketsResult *(*parse)(const char *);
 } BucketsResultOpration;
 
 typedef struct
 {
-  Bucket *
-  (*init)();
-  void
-  (*destroy)(Bucket *);
+  Bucket *(*init)();
+  void (*destroy)(Bucket *);
   int (*delete)(OSSPtr, char *);
   int (*put)(OSSPtr, char *);
   int (*putAcl)(OSSPtr, char *, ACL);
+  ACL (*getAcl)(OSSPtr, char *);
 } BucketOpration;
 
 typedef struct
 {
-  Owner *
-  (*init)();
-  void
-  (*destroy)(Owner *);
+  Owner *(*init)();
+  void (*destroy)(Owner *);
 } OwnerOpration;
 
-Bucket *
-bucket_init();
+Bucket *bucket_init();
 
-void
-bucket_destroy(Bucket *bucket);
+void bucket_destroy(Bucket *bucket);
 
-Owner *
-owner_init();
+Owner *owner_init();
 
-void
-owner_destroy(Owner *owner);
+void owner_destroy(Owner *owner);
 
-BucketsResult *
-bucket_result_parse(const char *xml);
+BucketsResult *bucket_result_parse(const char *xml);
 
-BucketsResult *
-bucket_result_init();
+BucketsResult *bucket_result_init();
 
-void
-bucket_result_destroy(BucketsResult *bucket_result);
+void bucket_result_destroy(BucketsResult *bucket_result);
 
 extern BucketsResultOpration BucketsResultClass;
 

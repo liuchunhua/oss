@@ -13,131 +13,132 @@
 
 #include "String.h"
 
-extern StringOpation StringClass = {
-    .init = new_string,
-    .destroy = free_string,
-    .indexOf = indexOf,
-    .lastIndexOf = lastIndexOf,
-    .substring = substring,
-    .concat = concat,
-    .toLowercase = toLowcase,
-    .toUppercase = toUppercase
+extern StringOpation StringClass =
+{
+        .init = new_string,
+        .destroy = free_string,
+        .indexOf = indexOf,
+        .lastIndexOf = lastIndexOf,
+        .substring = substring,
+        .concat = concat,
+        .toLowercase = toLowcase,
+        .toUppercase = toUppercase
 };
 
-String*
-new_string()
+String* new_string()
 {
-  String* s = (String*) malloc(sizeof(String));
-  if (s == NULL )
-    return NULL ;
-  memset(s, 0x0, sizeof(String));
-  return s;
+    String* s = (String*) malloc(sizeof(String));
+    if (s == NULL )
+        return NULL ;
+    memset(s, 0x0, sizeof(String));
+    return s;
 }
-void
-free_string(String* s)
+
+void free_string(String* s)
 {
-  if (s)
+    if (s)
     {
-      if (s->str)
-        free(s->str);
-      free(s);
+        if (s->str)
+            free(s->str);
+        free(s);
     }
 }
-int
-indexOf(const char* s, int c)
+
+int indexOf(const char* s, int c)
 {
-  char* first = strchr(s, c);
-  if (first)
-    return first - s;
-  else
-    return -1;
-}
-int
-lastIndexOf(const char* s, int c)
-{
-  char* last = strrchr(s, c);
-  if (last)
-    return last - s;
-  else
-    return -1;
-}
-char*
-substring(const char* s, int start, int end)
-{
-  int length = strlen(s);
-  if (start >= length || end < start)
-    return NULL ;
-  if (start < 0)
-    start = 0;
-  if (end >= length)
-    end = length - 1;
-  String str;
-  str.length = end - start + 1;
-  str.str = (char*) malloc(str.length + 1);
-  memset(str.str, 0x0, str.length + 1);
-  strncpy(str.str, s + start, str.length);
-  return str.str;
+    char* first = strchr(s, c);
+    if (first)
+        return first - s;
+    else
+        return -1;
 }
 
-char*
-concat(int i, ...)
+int lastIndexOf(const char* s, int c)
 {
-  va_list ap;
-  va_start(ap, i);
-  String str;
-  str.str = (char*) calloc(256, sizeof(char));
-  str.length = 255;
-  int j = 0;
-  char* arg;
-  for (; j < i; j++)
+    char* last = strrchr(s, c);
+    if (last)
+        return last - s;
+    else
+        return -1;
+}
+
+char *substring(const char* s, int start, int end)
+{
+    int length = strlen(s);
+    if (start >= length || end < start)
+        return NULL ;
+    if (start < 0)
+        start = 0;
+    if (end >= length)
+        end = length - 1;
+    String str;
+    str.length = end - start + 1;
+    str.str = (char*) malloc(str.length + 1);
+    memset(str.str, 0x0, str.length + 1);
+    strncpy(str.str, s + start, str.length);
+    return str.str;
+}
+
+char* concat(int i, ...)
+{
+    va_list ap;
+    va_start(ap, i);
+    String str;
+    str.str = (char*) calloc(256, sizeof(char));
+    str.length = 255;
+    int j = 0;
+    char* arg;
+    for (; j < i; j++)
     {
-      arg = va_arg(ap,char*);
-      int total = strlen(str.str) + strlen(arg);
+        arg = va_arg(ap,char*);
+        int total = strlen(str.str) + strlen(arg);
 
-      if (total > str.length)
+        if (total > str.length)
         {
-          str.str = (char*) realloc(str.str, total);
-          str.length = total;
-          strcat(str.str, arg);
+            str.str = (char*) realloc(str.str, total);
+            str.length = total;
+            strcat(str.str, arg);
         }
-      else
+        else
         {
-          strcat(str.str, arg);
+            strcat(str.str, arg);
         }
 
     }
-  va_end(ap);
-  str.length = strlen(str.str);
-  char* new_string = strdup(str.str);
-  free(str.str);
-  return new_string;
+    va_end(ap);
+    str.length = strlen(str.str);
+    char* new_string = strdup(str.str);
+    free(str.str);
+    return new_string;
 }
+
 char *toLowcase(const char *str)
 {
-	char *newstr = strdup(str);
-	char *p = newstr;
-	while(*p != '\0'){
-		if(isupper(*p))
-		{
-			*p = tolower(*p);
-		}
-		p++;
-	}
+    char *newstr = strdup(str);
+    char *p = newstr;
+    while (*p != '\0')
+    {
+        if (isupper(*p))
+        {
+            *p = tolower(*p);
+        }
+        p++;
+    }
 
-	return newstr;
+    return newstr;
 }
 
 char *toUppercase(const char *str)
 {
-	char *newstr = strdup(str);
-	char *p = newstr;
-	while(*p != '\0')
-	{
-		if(islower(*p))
-		{
-			*p = toupper(*p);
-		}
-		p++;
-	}
-	return newstr;
+    char *newstr = strdup(str);
+    char *p = newstr;
+    while (*p != '\0')
+    {
+        if (islower(*p))
+        {
+            *p = toupper(*p);
+        }
+        p++;
+    }
+    return newstr;
 }

@@ -29,22 +29,17 @@ typedef struct{
 /*
  *return the position of the character in the String,not found return -1;
  */
-String*
-new_string();
-void
-free_string(String* s);
-int
-indexOf(const char* s, int c);
+String *new_string();
+void free_string(String* s);
+int indexOf(const char* s, int c);
 
 /*from the end to start ,firest position of the 'c'*/
-int
-lastIndexOf(const char* s, int c);
+int lastIndexOf(const char* s, int c);
 
 /*
  * String between 'start' and 'end'(include)
  */
-char*
-substring(const char* s, int start, int end);
+char* substring(const char* s, int start, int end);
 /*
  * String to lowcase
  */
@@ -56,8 +51,7 @@ char *toLowcase(const char *str);
 char *toUppercase(const char *str);
 
 
-char*
-concat(int i, ...);
+char* concat(int i, ...);
 
 extern StringOpation StringClass;
 

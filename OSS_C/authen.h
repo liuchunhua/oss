@@ -6,14 +6,13 @@
 #define AUTHEN_H_
 
 #include "HashTable.h"
+#include "oss_config.h"
 
 //构建 CanonicalizedOSSHeaders 的方法
-char *
-canonicalizedOSSHeaders(HashTable *headers);
+char *canonicalizedOSSHeaders(HashTable *headers);
 
 //构建 CanonicalizedResource 的方法:
-char *
-canonicalizedResource(const char * resource);
+char *canonicalizedResource(const char * resource);
 
 /*
  * base64(hmac-sha1(VERB + "\n"
@@ -24,8 +23,9 @@ canonicalizedResource(const char * resource);
  + CanonicalizedResource))
 
  */
-char *
-oss_authorizate(const char *key, const char *method, HashTable *headers,
+char *oss_authorizate(const char *key, const char *method, HashTable *headers,
     const char* resource);
 
+char *new_oss_authorizate(OSSPtr oss, const char *method, HashTable *headers,
+    const char* resource);
 #endif

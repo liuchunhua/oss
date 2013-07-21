@@ -56,10 +56,10 @@ int hash_table_put(struct HashTable *table, const char *key, void *value);
 */
 struct pair *hash_table_get(struct HashTable *table,const char *key);
 	
-//获得key的list值
+//List<char *>
 List hash_table_get_list(struct HashTable *table,const char *key);
 
-//获得所有key-value
+//List<struct pair *>
 List hash_table_get_all(struct HashTable *table);
 List hash_table_get_key_list(struct HashTable *table);
 

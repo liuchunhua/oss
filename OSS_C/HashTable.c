@@ -67,6 +67,7 @@ int hash_table_put(struct HashTable *table,const char *key, void *value) {
 	((struct pair*) (table->elements[v]))->value = value;
 	return 0;
 }
+
 struct pair *hash_table_get(struct HashTable *table,const char *key) {
 	int v = (table->hash)(key)%HASH_TABLE_LEN;
 	if (table->keys[v] == NONE)
@@ -75,18 +76,17 @@ struct pair *hash_table_get(struct HashTable *table,const char *key) {
 		return ((struct pair*)table->elements[v])->value;
 	} else {
 		List list = (List) (table->elements[v]);
-		List node = list->next;
-		while (list != node->next) {
+		List node;
+		for_each(node,list) {
 			struct pair *map = (struct pair*) node->ptr;
 			if (strcmp(key, map->key) == 0)
 				return ((struct pair*) (node->ptr))->value;
-			node = node->next;
 		}
 	}
 	return NULL ;
 
 }
-
+//获得值的列表List<char *>
 List hash_table_get_list(struct HashTable *table,const char *key)
 {
 	List ls = listInit();
@@ -103,7 +103,7 @@ List hash_table_get_list(struct HashTable *table,const char *key)
 		while (list != node->next) {
 			struct pair *map = (struct pair*) node->ptr;
 			if (strcmp(key, map->key) == 0)
-				listAdd(ls, ((struct pair*) (node->ptr))->value);
+				listAdd(ls, map->value);
 			node = node->next;
 		}
 		return ls;
@@ -169,7 +169,7 @@ void hash_table_free_fun(HashTable *table, void (*free_fun)(void *)){
 					List node;
 					for_each(node,ls)
 					{
-        				struct pair *pair = table->elements[i]; 
+        				struct pair *pair = node->ptr; 
         				if(free_fun != NULL)
         					(*free_fun)(pair->value);
         				free_pair(pair);

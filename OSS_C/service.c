@@ -23,16 +23,14 @@ BucketsResultOpration BucketsResultClass =
 OwnerOpration OwnerClass =
   { .init = owner_init, .destroy = owner_destroy };
 
-Bucket *
-bucket_init()
+Bucket *bucket_init()
 {
   Bucket *bucket = malloc(sizeof(Bucket));
   memset(bucket, 0x0, sizeof(Bucket));
   return bucket;
 }
 
-void
-bucket_destroy(Bucket *bucket)
+void bucket_destroy(Bucket *bucket)
 {
   if (bucket->name)
     free(bucket->name);
@@ -41,16 +39,14 @@ bucket_destroy(Bucket *bucket)
   free(bucket);
 }
 
-Owner *
-owner_init()
+Owner *owner_init()
 {
   Owner *owner = malloc(sizeof(Owner));
   memset(owner, 0x0, sizeof(Owner));
   return owner;
 }
 
-void
-owner_destroy(Owner *owner)
+void owner_destroy(Owner *owner)
 {
   if (owner->id)
     free(owner->id);
@@ -59,8 +55,7 @@ owner_destroy(Owner *owner)
   free(owner);
 }
 
-static Owner *
-getOwner(xmlNodePtr node)
+static Owner *getOwner(xmlNodePtr node)
 {
   if (!strcmp((char*) node->name, "Owner"))
     {
@@ -79,8 +74,7 @@ getOwner(xmlNodePtr node)
   return NULL ;
 }
 
-static struct Bucket*
-getBucket(xmlNodePtr node)
+static struct Bucket *getBucket(xmlNodePtr node)
 {
   if (!strcmp((char*) node->name, "Bucket"))
     {
@@ -98,8 +92,7 @@ getBucket(xmlNodePtr node)
   return NULL ;
 }
 
-static List
-getListBucket(xmlNodePtr node)
+static List getListBucket(xmlNodePtr node)
 {
   if (!strcmp((char*) node->name, "Buckets"))
     {
@@ -120,8 +113,7 @@ getListBucket(xmlNodePtr node)
     }
   return NULL ;
 }
-BucketsResult *
-bucket_result_init()
+BucketsResult *bucket_result_init()
 {
   BucketsResult *bucket_result = malloc(sizeof(BucketsResult));
   memset(bucket_result, 0x0, sizeof(BucketsResult));
@@ -131,8 +123,8 @@ bucket_result_init()
 
   return bucket_result;
 }
-void
-bucket_result_destroy(BucketsResult *bucket_result)
+
+void bucket_result_destroy(BucketsResult *bucket_result)
 {
   if (bucket_result)
     {
@@ -147,8 +139,7 @@ bucket_result_destroy(BucketsResult *bucket_result)
     }
 }
 
-BucketsResult *
-bucket_result_parse(const char *xml)
+BucketsResult *bucket_result_parse(const char *xml)
 {
   xmlDocPtr doc;
   xmlNodePtr root;
@@ -184,5 +175,4 @@ bucket_result_parse(const char *xml)
     }
 
   return result;
-
 }

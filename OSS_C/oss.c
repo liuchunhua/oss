@@ -29,987 +29,976 @@
 #include "oss_config.h"
 
 OSSOperation OSSClass =
-  { .init = oss_init, .destroy = free_ossptr };
+{ .init = oss_init, .destroy = free_ossptr };
 
 BucketOpration BucketClass =
-  {
-      .init = bucket_init,
-      .destroy = bucket_destroy,
-      .delete = DeleteBucket,
-      .put = PutBucket,
-      .putAcl = PutBucketACL
-  };
+{ .init = bucket_init, .destroy = bucket_destroy, .delete = DeleteBucket, .put =
+        PutBucket, .putAcl = PutBucketACL, .getAcl = GetBucketACL };
 
 struct HttpResponse
 {
-  size_t code;
-  MemoryBlock* body;
-  MemoryBlock* header;
+    size_t code;
+    MemoryBlock* body;
+    MemoryBlock* header;
 };
 
 struct Range
 {
-  size_t start;
-  size_t end;
+    size_t start;
+    size_t end;
 };
 
-static void
-free_http_response(struct HttpResponse* response)
+static void free_http_response(struct HttpResponse* response)
 {
-  if (response)
+    if (response)
     {
-      if (response->body)
+        if (response->body)
         {
-          free(response->body->memory);
-          free(response->body);
+            free(response->body->memory);
+            free(response->body);
         }
-      if (response->header)
+        if (response->header)
         {
-          free(response->header->memory);
-          free(response->header);
+            free(response->header->memory);
+            free(response->header);
         }
-      free(response);
+        free(response);
     }
 }
 static char* acl[] =
-  { "public-read-write", "public-read", "private" };
+{ "public-read-write", "public-read", "private" };
 
-static size_t
-write_memory(void *buffer, size_t size, size_t nmemb, void *userp)
+static size_t write_memory(void *buffer, size_t size, size_t nmemb, void *userp)
 {
-  size_t realsize = size * nmemb;
-  MemoryBlock* mem = (MemoryBlock*) userp;
+    size_t realsize = size * nmemb;
+    MemoryBlock* mem = (MemoryBlock*) userp;
 
-  mem->memory = realloc(mem->memory, mem->size + realsize + 1);
-  if (mem->memory == NULL )
+    mem->memory = realloc(mem->memory, mem->size + realsize + 1);
+    if (mem->memory == NULL )
     {
-      /* out of memory! */
-      printf("not enough memory (realloc returned NULL)\n");
-      exit(EXIT_FAILURE);
+        /* out of memory! */
+        printf("not enough memory (realloc returned NULL)\n");
+        exit(EXIT_FAILURE);
     }
 
-  memcpy(&(mem->memory[mem->size]), buffer, realsize);
-  mem->size += realsize;
-  mem->memory[mem->size] = 0;
+    memcpy(&(mem->memory[mem->size]), buffer, realsize);
+    mem->size += realsize;
+    mem->memory[mem->size] = 0;
 
-  return realsize;
+    return realsize;
 }
-static size_t
-write_buf(void *buffer, size_t size, size_t nmemb, void *userp)
+static size_t write_buf(void *buffer, size_t size, size_t nmemb, void *userp)
 {
-  size_t realsize = size * nmemb;
-  MemoryBlock* mem = (MemoryBlock*) userp;
+    size_t realsize = size * nmemb;
+    MemoryBlock* mem = (MemoryBlock*) userp;
 #ifdef DEBUG
-  syslog(LOG_MAKEPRI(LOG_USER,LOG_WARNING), "read %ld bytes\n",(long int)realsize);
+    syslog(LOG_MAKEPRI(LOG_USER,LOG_WARNING), "read %ld bytes\n",(long int)realsize);
 #endif
-  memcpy(&(mem->memory[mem->size]), buffer, realsize);
-  mem->size += realsize;
-  mem->memory[mem->size] = 0;
-  return realsize;
+    memcpy(&(mem->memory[mem->size]), buffer, realsize);
+    mem->size += realsize;
+    mem->memory[mem->size] = 0;
+    return realsize;
 }
-static size_t
-write_data(void *ptr, size_t size, size_t nmemb, void *stream)
+static size_t write_data(void *ptr, size_t size, size_t nmemb, void *stream)
 {
-  size_t written = fwrite(ptr, size, nmemb, (FILE *) stream);
-  return written;
-}
-
-static size_t
-read_callback(void *ptr, size_t size, size_t nmemb, void *stream)
-{
-  size_t retcode;
-  curl_off_t nread;
-
-  /* in real-world cases, this would probably get this data differently
-   as this fread() stuff is exactly what the library already would do
-   by default internally */
-  retcode = fread(ptr, size, nmemb, stream);
-
-  nread = (curl_off_t) retcode;
-
-  fprintf(stderr, "*** We read %" CURL_FORMAT_CURL_OFF_T
-  " bytes from file\n", nread);
-
-  return retcode;
+    size_t written = fwrite(ptr, size, nmemb, (FILE *) stream);
+    return written;
 }
 
-static const char*
-header(char* buf, char* key, char* value)
+static size_t read_callback(void *ptr, size_t size, size_t nmemb, void *stream)
 {
-  memset(buf, 0x0, 200);
-  strcat(buf, key);
-  strcat(buf, ":");
-  strcat(buf, value);
-  return buf;
+    size_t retcode;
+    curl_off_t nread;
+
+    /* in real-world cases, this would probably get this data differently
+     as this fread() stuff is exactly what the library already would do
+     by default internally */
+    retcode = fread(ptr, size, nmemb, stream);
+
+    nread = (curl_off_t) retcode;
+
+    fprintf(stderr, "*** We read %" CURL_FORMAT_CURL_OFF_T
+    " bytes from file\n", nread);
+
+    return retcode;
 }
-static struct HttpResponse*
-response_init()
+
+static const char* header(char* buf, char* key, char* value)
 {
-  struct HttpResponse* response = (struct HttpResponse*) malloc(
-      sizeof(struct HttpResponse));
-  memset(response, 0x0, sizeof(struct HttpResponse));
-  response->body = (MemoryBlock*) malloc(sizeof(MemoryBlock));
-  response->header = (MemoryBlock*) malloc(sizeof(MemoryBlock));
-  response->body->memory = malloc(1);
-  response->body->size = 0;
-  response->header->memory = malloc(1);
-  response->header->size = 0;
-  return response;
+    memset(buf, 0x0, 200);
+    strcat(buf, key);
+    strcat(buf, ":");
+    strcat(buf, value);
+    return buf;
+}
+static struct HttpResponse* response_init()
+{
+    struct HttpResponse* response = (struct HttpResponse*) malloc(
+            sizeof(struct HttpResponse));
+    memset(response, 0x0, sizeof(struct HttpResponse));
+    response->body = (MemoryBlock*) malloc(sizeof(MemoryBlock));
+    response->header = (MemoryBlock*) malloc(sizeof(MemoryBlock));
+    response->body->memory = malloc(1);
+    response->body->size = 0;
+    response->header->memory = malloc(1);
+    response->header->size = 0;
+    return response;
 }
 
 /*此方法已放弃，使用oss_http.h*/
-static struct HttpResponse*
-http_request_old(OSSPtr oss, const char* method, const char* requestresource,
-    struct HashTable* headers)
+static struct HttpResponse* http_request_old(OSSPtr oss, const char* method,
+        const char* requestresource, struct HashTable* headers)
 {
-  CURL *curl;
-  CURLcode res;
-  struct HashTable* table;
-  char* ACCESS_KEY = oss->access_key;
-  int isInit = 0;
-  struct HttpResponse* response = response_init();
-  M_str date = localtime_gmt();
-  char* host = oss->host;
-  char buf[200] =
+    CURL *curl;
+    CURLcode res;
+    struct HashTable* table;
+    char* ACCESS_KEY = oss->access_key;
+    int isInit = 0;
+    struct HttpResponse* response = response_init();
+    M_str date = localtime_gmt();
+    char* host = oss->host;
+    char buf[200] =
     { };
-  char authorhead[100] =
+    char authorhead[100] =
     { };
-  strcat(authorhead, "Authorization: OSS ");
-  strcat(authorhead, oss->access_id);
-  char* url = malloc(strlen(host) + strlen(requestresource) + 1);
-  memset(url, 0x0, strlen(host) + strlen(requestresource) + 1);
-  strcat(url, host);
-  strcat(url, requestresource);
-  if (headers == NULL )
+    strcat(authorhead, "Authorization: OSS ");
+    strcat(authorhead, oss->access_id);
+    char* url = malloc(strlen(host) + strlen(requestresource) + 1);
+    memset(url, 0x0, strlen(host) + strlen(requestresource) + 1);
+    strcat(url, host);
+    strcat(url, requestresource);
+    if (headers == NULL )
     {
-      isInit = 1;
-      table = hash_table_init();
+        isInit = 1;
+        table = hash_table_init();
     }
-  else
+    else
     {
-      table = headers;
+        table = headers;
     }
-  hash_table_put(table, "Date", date);
-  M_str authorization = oss_authorizate(ACCESS_KEY, method, table,
-      requestresource);
-  curl = curl_easy_init();
-  if (curl)
+    hash_table_put(table, "Date", date);
+    M_str authorization = oss_authorizate(ACCESS_KEY, method, table,
+            requestresource);
+    curl = curl_easy_init();
+    if (curl)
     {
-      struct curl_slist *chunk = NULL;
+        struct curl_slist *chunk = NULL;
 
-      chunk = curl_slist_append(chunk, header(buf, authorhead, authorization));
-//		chunk = curl_slist_append(chunk, header(buf, "Date", date));
-      List list = hash_table_get_key_list(table);
-      List node;
-      for_each(node,list)
+        chunk = curl_slist_append(chunk,
+                header(buf, authorhead, authorization));
+        //        chunk = curl_slist_append(chunk, header(buf, "Date", date));
+        List list = hash_table_get_key_list(table);
+        List node;
+        for_each(node,list)
         {
-          struct pair* p = (struct pair*) node->ptr;
-          curl_slist_append(chunk,
-              header(buf, (char*) p->key, (char*) p->value));
+            struct pair* p = (struct pair*) node->ptr;
+            curl_slist_append(chunk,
+                    header(buf, (char*) p->key, (char*) p->value));
         }
-      listFree(list);
-      curl_easy_setopt(curl, CURLOPT_URL, url);
-      curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
-      curl_easy_setopt(curl, CURLOPT_NOPROGRESS, 1L);
+        listFree(list);
+        curl_easy_setopt(curl, CURLOPT_URL, url);
+        curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
+        curl_easy_setopt(curl, CURLOPT_NOPROGRESS, 1L);
 
-      if (strcasestr(method, "put") != NULL )
+        if (strcasestr(method, "put") != NULL )
         {
-          curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, method);
+            curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, method);
         }
-      if (strcasestr(method, "post") != NULL )
-        curl_easy_setopt(curl, CURLOPT_POST, 1L);
-      if (strcasestr(method, "delete") != NULL )
+        if (strcasestr(method, "post") != NULL )
+            curl_easy_setopt(curl, CURLOPT_POST, 1L);
+        if (strcasestr(method, "delete") != NULL )
         {
-          curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "DELETE");
+            curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "DELETE");
         }
-      if (strcasestr(method, "head") != NULL )
+        if (strcasestr(method, "head") != NULL )
         {
-          curl_easy_setopt(curl, CURLOPT_NOBODY, 1L);
+            curl_easy_setopt(curl, CURLOPT_NOBODY, 1L);
         }
-      if (oss->proxy != NULL )
+        if (oss->proxy != NULL )
         {
-          curl_easy_setopt(curl, CURLOPT_PROXY, oss->proxy);
+            curl_easy_setopt(curl, CURLOPT_PROXY, oss->proxy);
         }
-      res = curl_easy_setopt(curl, CURLOPT_HTTPHEADER, chunk);
-      curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_memory);
-      curl_easy_setopt(curl, CURLOPT_WRITEHEADER, (void* )response->header);
-      curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void* )response->body);
+        res = curl_easy_setopt(curl, CURLOPT_HTTPHEADER, chunk);
+        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_memory);
+        curl_easy_setopt(curl, CURLOPT_WRITEHEADER, (void* )response->header);
+        curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void* )response->body);
 #ifdef DEBUG
-      syslog(LOG_MAKEPRI(LOG_USER,LOG_WARNING), "curl perform\n");
+        syslog(LOG_MAKEPRI(LOG_USER,LOG_WARNING), "curl perform\n");
 #endif
-      res = curl_easy_perform(curl);
-      if (res == CURLE_OK)
-        curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &(response->code));
-      else
+        res = curl_easy_perform(curl);
+        if (res == CURLE_OK)
+            curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &(response->code));
+        else
         {
 #ifdef DEBUG
-          syslog(LOG_MAKEPRI(LOG_USER,LOG_WARNING), "%s\n", curl_easy_strerror(res));
+            syslog(LOG_MAKEPRI(LOG_USER,LOG_WARNING), "%s\n", curl_easy_strerror(res));
 #endif
         }
-      if (isInit)
-        hash_table_free(table);
-      free(url);
-      free(date);
-      free(authorization);
-      curl_slist_free_all(chunk);
-      curl_easy_cleanup(curl);
-      return response;
+        if (isInit)
+            hash_table_free(table);
+        free(url);
+        free(date);
+        free(authorization);
+        curl_slist_free_all(chunk);
+        curl_easy_cleanup(curl);
+        return response;
     }
-  fprintf(stderr, "ERROR:%s\n", "request failed");
-  return NULL ;
-}
-
-static struct HttpResponse*
-http_upload(OSSPtr oss, const char* method, const char* requestresource,
-    char* file, struct HashTable* headers)
-{
-  CURL *curl;
-  CURLcode res;
-  struct HashTable* table;
-  FILE* hd_src;
-  int hd;
-  struct stat fileinfo;
-  char* ACCESS_KEY = oss->access_key;
-  int isInit = 0;
-
-  hd = open(file, O_RDONLY);
-  fstat(hd, &fileinfo);
-  close(hd);
-  fprintf(stderr, "%d\n", fileinfo.st_size);
-  hd_src = fopen(file, "rb");
-  struct HttpResponse* response = response_init();
-  M_str date = localtime_gmt();
-  char* host = oss->host;
-  char buf[200] =
-    { };
-  char authorhead[100] =
-    { };
-  strcat(authorhead, "Authorization: OSS ");
-  strcat(authorhead, oss->access_id);
-  char* url = malloc(strlen(host) + strlen(requestresource) + 1);
-  memset(url, 0x0, strlen(host) + strlen(requestresource) + 1);
-  strcat(url, host);
-  strcat(url, requestresource);
-  if (headers == NULL )
-    {
-      isInit = 1;
-      table = hash_table_init();
-    }
-  else
-    {
-      table = headers;
-    }
-  hash_table_put(table, "Date", date);
-  M_str authorization = oss_authorizate(ACCESS_KEY, method, table,
-      requestresource);
-  curl = curl_easy_init();
-  if (curl)
-    {
-      struct curl_slist *chunk = NULL;
-
-      chunk = curl_slist_append(chunk, header(buf, authorhead, authorization));
-//		chunk = curl_slist_append(chunk, header(buf, "Date", date));
-      List list = hash_table_get_key_list(table);
-      List node;
-      for_each(node,list)
-        {
-          struct pair* p = (struct pair*) node->ptr;
-          curl_slist_append(chunk,
-              header(buf, (char*) p->key, (char*) p->value));
-        }
-      listFree(list);
-      curl_easy_setopt(curl, CURLOPT_URL, url);
-      curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
-      if (strcasestr(method, "put") != NULL )
-        {
-          curl_easy_setopt(curl, CURLOPT_UPLOAD, 1L);
-          curl_easy_setopt(curl, CURLOPT_READFUNCTION, read_callback);
-          curl_easy_setopt(curl, CURLOPT_READDATA, hd_src);
-          curl_easy_setopt(curl, CURLOPT_INFILESIZE_LARGE,
-              (curl_off_t )(fileinfo.st_size));
-        }
-      if (strcasestr(method, "post") != NULL )
-        curl_easy_setopt(curl, CURLOPT_POST, 1L);
-      if (oss->proxy != NULL )
-        {
-          curl_easy_setopt(curl, CURLOPT_PROXY, oss->proxy);
-        }
-      res = curl_easy_setopt(curl, CURLOPT_HTTPHEADER, chunk);
-      curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_memory);
-      curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void* )response);
-      res = curl_easy_perform(curl);
-      fclose(hd_src);
-      if (res == CURLE_OK)
-        curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &(response->code));
-      else
-        {
-          fprintf(stderr, "ERROR:%s\n", curl_easy_strerror(res));
-          response = NULL;
-        }
-      if (isInit)
-        hash_table_free(table);
-      free(url);
-      free(date);
-      free(authorization);
-      curl_slist_free_all(chunk);
-      curl_easy_cleanup(curl);
-      return response;
-    }
-  fprintf(stderr, "ERROR:%s\n", "request failed");
-  return NULL ;
-}
-
-static struct HttpResponse*
-http_download(OSSPtr oss, const char* method, const char* requestresource,
-    size_t content_length, char* dest_file, struct HashTable* headers,
-    unsigned short redownnload)
-{
-  CURL *curl;
-  CURLcode res;
-  FILE* file;
-  int hd;
-  struct stat fileinfo;
-  if (redownnload == 0)
-    file = fopen(dest_file, "ab");
-  else
-    file = fopen(dest_file, "wb");
-  hd = open(dest_file, O_RDONLY);
-  fstat(hd, &fileinfo);
-  close(hd);
-
-  struct HashTable* table;
-  char* ACCESS_KEY = oss->access_key;
-  int isInit = 0;
-  struct HttpResponse* response = response_init();
-  if (redownnload == 0 && content_length <= fileinfo.st_size)
-    {
-      response->code == 200;
-      return response;
-    }
-  char x_y[64] =
-    { };
-  M_str date = localtime_gmt();
-  char* host = oss->host;
-  char buf[200] =
-    { };
-  char authorhead[100] =
-    { };
-  strcat(authorhead, "Authorization: OSS ");
-  strcat(authorhead, oss->access_id);
-  char* url = malloc(strlen(host) + strlen(requestresource) + 1);
-  memset(url, 0x0, strlen(host) + strlen(requestresource) + 1);
-  strcat(url, host);
-  strcat(url, requestresource);
-  if (headers == NULL )
-    {
-      isInit = 1;
-      table = hash_table_init();
-    }
-  else
-    {
-      table = headers;
-    }
-  hash_table_put(table, "Date", date);
-  M_str authorization = oss_authorizate(ACCESS_KEY, method, table,
-      requestresource);
-  curl = curl_easy_init();
-  if (curl)
-    {
-      struct curl_slist *chunk = NULL;
-      sprintf(x_y, "bytes=%d-%d", fileinfo.st_size, content_length - 1);
-//      chunk = curl_slist_append(chunk, header(buf, "Date", date));
-      chunk = curl_slist_append(chunk, header(buf, "Range", x_y));
-      chunk = curl_slist_append(chunk, header(buf, authorhead, authorization));
-      curl_slist_append(chunk, header(buf, "Accept", ""));
-
-      List list = hash_table_get_key_list(table);
-      List node;
-      for_each(node,list)
-        {
-          struct pair* p = (struct pair*) node->ptr;
-          curl_slist_append(chunk,
-              header(buf, (char*) p->key, (char*) p->value));
-        }
-      listFree(list);
-      if (oss->proxy != NULL )
-        {
-          curl_easy_setopt(curl, CURLOPT_PROXY, oss->proxy);
-        }
-      curl_easy_setopt(curl, CURLOPT_URL, url);
-      curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
-
-      res = curl_easy_setopt(curl, CURLOPT_HTTPHEADER, chunk);
-      curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_data);
-      curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void* )file);
-//      curl_easy_setopt(curl, CURLOPT_RANGE, x_y);
-      res = curl_easy_perform(curl);
-      fclose(file);
-      if (res == CURLE_OK)
-        curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &(response->code));
-      else
-        {
-          fprintf(stderr, "ERROR:%s\n", curl_easy_strerror(res));
-          response = NULL;
-        }
-      if (isInit)
-        hash_table_free(table);
-      free(url);
-      free(date);
-      free(authorization);
-      curl_slist_free_all(chunk);
-      curl_easy_cleanup(curl);
-      return response;
-    }
-  fprintf(stderr, "ERROR:%s\n", "request failed");
-  return NULL ;
-}
-
-static struct HttpResponse*
-http_download_memory(OSSPtr oss, const char* method,
-    const char* requestresource, char* buf, size_t size, off_t offset,
-    struct HashTable* headers)
-{
-  if (size == 0)
+    fprintf(stderr, "ERROR:%s\n", "request failed");
     return NULL ;
-  CURL *curl;
-  CURLcode res;
-  struct HashTable* table;
-  MemoryBlock* block = (MemoryBlock*) malloc(sizeof(MemoryBlock));
-  memset(block, 0x0, sizeof(MemoryBlock));
-  block->memory = buf;
-  block->size = 0;
-  char* ACCESS_KEY = oss->access_key;
-  int isInit = 0;
-  struct HttpResponse* response = response_init();
-  char x_y[64] =
-    { };
-  M_str date = localtime_gmt();
-  char* host = oss->host;
-  char buffer[200] =
-    { };
-  char authorhead[100] =
-    { };
-  strcat(authorhead, "Authorization: OSS ");
-  strcat(authorhead, oss->access_id);
-  char* url = malloc(strlen(host) + strlen(requestresource) + 1);
-  memset(url, 0x0, strlen(host) + strlen(requestresource) + 1);
-  strcat(url, host);
-  strcat(url, requestresource);
-  if (headers == NULL )
-    {
-      isInit = 1;
-      table = hash_table_init();
-    }
-  else
-    {
-      table = headers;
-    }
-  hash_table_put(table, "Date", date);
-  M_str authorization = oss_authorizate(ACCESS_KEY, method, table,
-      requestresource);
-  curl = curl_easy_init();
-  if (curl)
-    {
-      struct curl_slist *chunk = NULL;
-      sprintf(x_y, "bytes=%d-%d", offset, offset + size - 1);
-//      chunk = curl_slist_append(chunk, header(buf, "Date", date));
-      chunk = curl_slist_append(chunk, header(buffer, "Range", x_y));
-      chunk = curl_slist_append(chunk,
-          header(buffer, authorhead, authorization));
-      curl_slist_append(chunk, header(buffer, "Accept", ""));
-
-      List list = hash_table_get_key_list(table);
-      List node;
-      for_each(node,list)
-        {
-          struct pair* p = (struct pair*) node->ptr;
-          curl_slist_append(chunk,
-              header(buffer, (char*) p->key, (char*) p->value));
-        }
-      listFree(list);
-      if (oss->proxy != NULL )
-        {
-          curl_easy_setopt(curl, CURLOPT_PROXY, oss->proxy);
-        }
-      curl_easy_setopt(curl, CURLOPT_URL, url);
-      curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
-
-      res = curl_easy_setopt(curl, CURLOPT_HTTPHEADER, chunk);
-      curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_buf);
-      curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void* )block);
-//      curl_easy_setopt(curl, CURLOPT_RANGE, x_y);
-      res = curl_easy_perform(curl);
-      if (res == CURLE_OK)
-        curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &(response->code));
-      else
-        {
-          fprintf(stderr, "ERROR:%s\n", curl_easy_strerror(res));
-          response = NULL;
-        }
-      if (isInit)
-        hash_table_free(table);
-      free(url);
-      free(date);
-      free(authorization);
-      curl_slist_free_all(chunk);
-      curl_easy_cleanup(curl);
-      return response;
-    }
-  fprintf(stderr, "ERROR:%s\n", "request failed");
-  return NULL ;
 }
 
-static OSSObject*
-oss_GetObject(const char* httpheader)
+static struct HttpResponse* http_upload(OSSPtr oss, const char* method,
+        const char* requestresource, char* file, struct HashTable* headers)
 {
-  char *str1, *str2, *token, *subtoken;
-  char *savePtr1, *savePtr2;
-  OSSObject* object = (OSSObject*) malloc(sizeof(OSSObject));
-  memset(object, 0x0, sizeof(object));
-  char* content_length;
-  size_t content_size;
-  for (str1 = httpheader;; str1 = NULL )
+    CURL *curl;
+    CURLcode res;
+    struct HashTable* table;
+    FILE* hd_src;
+    int hd;
+    struct stat fileinfo;
+    char* ACCESS_KEY = oss->access_key;
+    int isInit = 0;
+
+    hd = open(file, O_RDONLY);
+    fstat(hd, &fileinfo);
+    close(hd);
+    fprintf(stderr, "%d\n", fileinfo.st_size);
+    hd_src = fopen(file, "rb");
+    struct HttpResponse* response = response_init();
+    M_str date = localtime_gmt();
+    char* host = oss->host;
+    char buf[200] =
+    { };
+    char authorhead[100] =
+    { };
+    strcat(authorhead, "Authorization: OSS ");
+    strcat(authorhead, oss->access_id);
+    char* url = malloc(strlen(host) + strlen(requestresource) + 1);
+    memset(url, 0x0, strlen(host) + strlen(requestresource) + 1);
+    strcat(url, host);
+    strcat(url, requestresource);
+    if (headers == NULL )
     {
-      token = strtok_r(str1, "\n", &savePtr1);
-      if (token == NULL )
-        break;
-      int index = indexOf(token, ':');
-      if (index == -1)
-        continue;
-      String* key = substring(token, 0, index - 1);
-      String*value = substring(token, index + 1, strlen(token));
-      if (strcasecmp(key->str, "Last-Modified") == 0)
-        object->mtime = StrGmtToLocaltime(value->str);
-      if (strcasecmp(key->str, "Content-Type") == 0)
-        object->minetype = strdup(value->str);
-      if (strcasecmp(key->str, "Content-Length") == 0)
-        object->size = atol(value->str);
-      if (strcasecmp(key->str, "ETag") == 0)
-        object->etag = strdup(value->str);
-      free_string(key);
-      free_string(value);
+        isInit = 1;
+        table = hash_table_init();
     }
-  return object;
+    else
+    {
+        table = headers;
+    }
+    hash_table_put(table, "Date", date);
+    M_str authorization = oss_authorizate(ACCESS_KEY, method, table,
+            requestresource);
+    curl = curl_easy_init();
+    if (curl)
+    {
+        struct curl_slist *chunk = NULL;
+
+        chunk = curl_slist_append(chunk,
+                header(buf, authorhead, authorization));
+        //        chunk = curl_slist_append(chunk, header(buf, "Date", date));
+        List list = hash_table_get_key_list(table);
+        List node;
+        for_each(node,list)
+        {
+            struct pair* p = (struct pair*) node->ptr;
+            curl_slist_append(chunk,
+                    header(buf, (char*) p->key, (char*) p->value));
+        }
+        listFree(list);
+        curl_easy_setopt(curl, CURLOPT_URL, url);
+        curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
+        if (strcasestr(method, "put") != NULL )
+        {
+            curl_easy_setopt(curl, CURLOPT_UPLOAD, 1L);
+            curl_easy_setopt(curl, CURLOPT_READFUNCTION, read_callback);
+            curl_easy_setopt(curl, CURLOPT_READDATA, hd_src);
+            curl_easy_setopt(curl, CURLOPT_INFILESIZE_LARGE,
+                    (curl_off_t )(fileinfo.st_size));
+        }
+        if (strcasestr(method, "post") != NULL )
+            curl_easy_setopt(curl, CURLOPT_POST, 1L);
+        if (oss->proxy != NULL )
+        {
+            curl_easy_setopt(curl, CURLOPT_PROXY, oss->proxy);
+        }
+        res = curl_easy_setopt(curl, CURLOPT_HTTPHEADER, chunk);
+        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_memory);
+        curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void* )response);
+        res = curl_easy_perform(curl);
+        fclose(hd_src);
+        if (res == CURLE_OK)
+            curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &(response->code));
+        else
+        {
+            fprintf(stderr, "ERROR:%s\n", curl_easy_strerror(res));
+            response = NULL;
+        }
+        if (isInit)
+            hash_table_free(table);
+        free(url);
+        free(date);
+        free(authorization);
+        curl_slist_free_all(chunk);
+        curl_easy_cleanup(curl);
+        return response;
+    }
+    fprintf(stderr, "ERROR:%s\n", "request failed");
+    return NULL ;
+}
+
+static struct HttpResponse* http_download(OSSPtr oss, const char* method,
+        const char* requestresource, size_t content_length, char* dest_file,
+        struct HashTable* headers, unsigned short redownnload)
+{
+    CURL *curl;
+    CURLcode res;
+    FILE* file;
+    int hd;
+    struct stat fileinfo;
+    if (redownnload == 0)
+        file = fopen(dest_file, "ab");
+    else
+        file = fopen(dest_file, "wb");
+    hd = open(dest_file, O_RDONLY);
+    fstat(hd, &fileinfo);
+    close(hd);
+
+    struct HashTable* table;
+    char* ACCESS_KEY = oss->access_key;
+    int isInit = 0;
+    struct HttpResponse* response = response_init();
+    if (redownnload == 0 && content_length <= fileinfo.st_size)
+    {
+        response->code = 200;
+        return response;
+    }
+    char x_y[64] =
+    { };
+    M_str date = localtime_gmt();
+    char* host = oss->host;
+    char buf[200] =
+    { };
+    char authorhead[100] =
+    { };
+    strcat(authorhead, "Authorization: OSS ");
+    strcat(authorhead, oss->access_id);
+    char* url = malloc(strlen(host) + strlen(requestresource) + 1);
+    memset(url, 0x0, strlen(host) + strlen(requestresource) + 1);
+    strcat(url, host);
+    strcat(url, requestresource);
+    if (headers == NULL )
+    {
+        isInit = 1;
+        table = hash_table_init();
+    }
+    else
+    {
+        table = headers;
+    }
+    hash_table_put(table, "Date", date);
+    M_str authorization = oss_authorizate(ACCESS_KEY, method, table,
+            requestresource);
+    curl = curl_easy_init();
+    if (curl)
+    {
+        struct curl_slist *chunk = NULL;
+        sprintf(x_y, "bytes=%d-%d", fileinfo.st_size, content_length - 1);
+        //      chunk = curl_slist_append(chunk, header(buf, "Date", date));
+        chunk = curl_slist_append(chunk, header(buf, "Range", x_y));
+        chunk = curl_slist_append(chunk,
+                header(buf, authorhead, authorization));
+        curl_slist_append(chunk, header(buf, "Accept", ""));
+
+        List list = hash_table_get_key_list(table);
+        List node;
+        for_each(node,list)
+        {
+            struct pair* p = (struct pair*) node->ptr;
+            curl_slist_append(chunk,
+                    header(buf, (char*) p->key, (char*) p->value));
+        }
+        listFree(list);
+        if (oss->proxy != NULL )
+        {
+            curl_easy_setopt(curl, CURLOPT_PROXY, oss->proxy);
+        }
+        curl_easy_setopt(curl, CURLOPT_URL, url);
+        curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
+
+        res = curl_easy_setopt(curl, CURLOPT_HTTPHEADER, chunk);
+        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_data);
+        curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void* )file);
+        //      curl_easy_setopt(curl, CURLOPT_RANGE, x_y);
+        res = curl_easy_perform(curl);
+        fclose(file);
+        if (res == CURLE_OK)
+            curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &(response->code));
+        else
+        {
+            fprintf(stderr, "ERROR:%s\n", curl_easy_strerror(res));
+            response = NULL;
+        }
+        if (isInit)
+            hash_table_free(table);
+        free(url);
+        free(date);
+        free(authorization);
+        curl_slist_free_all(chunk);
+        curl_easy_cleanup(curl);
+        return response;
+    }
+    fprintf(stderr, "ERROR:%s\n", "request failed");
+    return NULL ;
+}
+
+static struct HttpResponse* http_download_memory(OSSPtr oss, const char* method,
+        const char* requestresource, char* buf, size_t size, off_t offset,
+        struct HashTable* headers)
+{
+    if (size == 0)
+        return NULL ;
+    CURL *curl;
+    CURLcode res;
+    struct HashTable* table;
+    MemoryBlock* block = (MemoryBlock*) malloc(sizeof(MemoryBlock));
+    memset(block, 0x0, sizeof(MemoryBlock));
+    block->memory = buf;
+    block->size = 0;
+    char* ACCESS_KEY = oss->access_key;
+    int isInit = 0;
+    struct HttpResponse* response = response_init();
+    char x_y[64] =
+    { };
+    M_str date = localtime_gmt();
+    char* host = oss->host;
+    char buffer[200] =
+    { };
+    char authorhead[100] =
+    { };
+    strcat(authorhead, "Authorization: OSS ");
+    strcat(authorhead, oss->access_id);
+    char* url = malloc(strlen(host) + strlen(requestresource) + 1);
+    memset(url, 0x0, strlen(host) + strlen(requestresource) + 1);
+    strcat(url, host);
+    strcat(url, requestresource);
+    if (headers == NULL )
+    {
+        isInit = 1;
+        table = hash_table_init();
+    }
+    else
+    {
+        table = headers;
+    }
+    hash_table_put(table, "Date", date);
+    M_str authorization = oss_authorizate(ACCESS_KEY, method, table,
+            requestresource);
+    curl = curl_easy_init();
+    if (curl)
+    {
+        struct curl_slist *chunk = NULL;
+        sprintf(x_y, "bytes=%d-%d", offset, offset + size - 1);
+        //      chunk = curl_slist_append(chunk, header(buf, "Date", date));
+        chunk = curl_slist_append(chunk, header(buffer, "Range", x_y));
+        chunk = curl_slist_append(chunk,
+                header(buffer, authorhead, authorization));
+        curl_slist_append(chunk, header(buffer, "Accept", ""));
+
+        List list = hash_table_get_key_list(table);
+        List node;
+        for_each(node,list)
+        {
+            struct pair* p = (struct pair*) node->ptr;
+            curl_slist_append(chunk,
+                    header(buffer, (char*) p->key, (char*) p->value));
+        }
+        listFree(list);
+        if (oss->proxy != NULL )
+        {
+            curl_easy_setopt(curl, CURLOPT_PROXY, oss->proxy);
+        }
+        curl_easy_setopt(curl, CURLOPT_URL, url);
+        curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
+
+        res = curl_easy_setopt(curl, CURLOPT_HTTPHEADER, chunk);
+        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_buf);
+        curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void* )block);
+        //      curl_easy_setopt(curl, CURLOPT_RANGE, x_y);
+        res = curl_easy_perform(curl);
+        if (res == CURLE_OK)
+            curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &(response->code));
+        else
+        {
+            fprintf(stderr, "ERROR:%s\n", curl_easy_strerror(res));
+            response = NULL;
+        }
+        if (isInit)
+            hash_table_free(table);
+        free(url);
+        free(date);
+        free(authorization);
+        curl_slist_free_all(chunk);
+        curl_easy_cleanup(curl);
+        return response;
+    }
+    fprintf(stderr, "ERROR:%s\n", "request failed");
+    return NULL ;
+}
+
+static OSSObject* oss_GetObject(const char* httpheader)
+{
+    char *str1, *str2, *token, *subtoken;
+    char *savePtr1, *savePtr2;
+    OSSObject* object = (OSSObject*) malloc(sizeof(OSSObject));
+    memset(object, 0x0, sizeof(object));
+    char* content_length;
+    size_t content_size;
+    for (str1 = httpheader;; str1 = NULL )
+    {
+        token = strtok_r(str1, "\n", &savePtr1);
+        if (token == NULL )
+            break;
+        int index = indexOf(token, ':');
+        if (index == -1)
+            continue;
+        String* key = substring(token, 0, index - 1);
+        String*value = substring(token, index + 1, strlen(token));
+        if (strcasecmp(key->str, "Last-Modified") == 0)
+            object->mtime = StrGmtToLocaltime(value->str);
+        if (strcasecmp(key->str, "Content-Type") == 0)
+            object->minetype = strdup(value->str);
+        if (strcasecmp(key->str, "Content-Length") == 0)
+            object->size = atol(value->str);
+        if (strcasecmp(key->str, "ETag") == 0)
+            object->etag = strdup(value->str);
+        free_string(key);
+        free_string(value);
+    }
+    return object;
 }
 
 /*
  * public method
  */
 
-OSSPtr
-new_ossptr()
+OSSPtr new_ossptr()
 {
-  OSSPtr oss = (OSSPtr) malloc(sizeof(OSS));
-  if (oss == NULL )
+    OSSPtr oss = (OSSPtr) malloc(sizeof(OSS));
+    if (oss == NULL )
     {
-      fprintf(stderr, "%s\n", "OSS malloc failed");
-      exit(EXIT_FAILURE);
+        fprintf(stderr, "%s\n", "OSS malloc failed");
+        exit(EXIT_FAILURE);
     }
-  return oss;
+    return oss;
 }
 
-void
-free_ossptr(OSSPtr oss)
+void free_ossptr(OSSPtr oss)
 {
-  if (oss->host)
-    free(oss->host);
-  if (oss->access_id)
-    free(oss->access_id);
-  if (oss->access_key)
-    free(oss->access_key);
-  if (oss)
-    free(oss);
+    if (oss->host)
+        free(oss->host);
+    if (oss->access_id)
+        free(oss->access_id);
+    if (oss->access_key)
+        free(oss->access_key);
+    if (oss->proxy)
+        free(oss->proxy);
+    if (oss->bucket)
+        free(oss->bucket);
+    if (oss)
+        free(oss);
 }
 
-void
-free_ossobject(OSSObject* obj)
+void free_ossobject(OSSObject* obj)
 {
-  if (obj)
+    if (obj)
     {
-      free(obj->etag);
-      free(obj->minetype);
-      free(obj->name);
-      free(obj);
+        free(obj->etag);
+        free(obj->minetype);
+        free(obj->name);
+        free(obj);
     }
 }
 
-OSSPtr
-oss_init(const char* host, const char* id, const char* key)
+OSSPtr oss_init(const char* host, const char* id, const char* key)
 {
-  OSSPtr oss = new_ossptr();
-  oss->host = strdup(host);
-  oss->access_id = strdup(id);
-  oss->access_key = strdup(key);
-  oss->proxy = NULL;
-  return oss;
+    OSSPtr oss = new_ossptr();
+    oss->host = strdup(host);
+    oss->access_id = strdup(id);
+    oss->access_key = strdup(key);
+    oss->proxy = NULL;
+    return oss;
 }
 
-List
-GetService(OSSPtr oss)
+List GetService(OSSPtr oss)
 {
-  HttpResponse* response;
-  HttpRequest *request = HttpRequestClass.init();
-  Logger.debug("request init");
-  request->method = strdup("GET");
-  request->url = strdup("/");
-  Logger.debug(request->method);
-  Logger.debug("http requst");
-  response = OSSHttpClass.request(request, oss);
-  if (response && response->code == 200)
+    HttpResponse* response;
+    HttpRequest *request = HttpRequestClass.init();
+    List buckets = NULL;
+    request->method = strdup("GET");
+    request->url = strdup("/");
+    response = OSSHttpClass.request(request, oss);
+    if (response && response->code == 200)
     {
-      Logger.debug(response->body->blk);
-      BucketsResult *result = bucket_result_parse(response->body->blk);
-      HttpResponseClass.destroy(response);
-      List list = result->buckets;
-      if(result->owner)
-        OwnerClass.destroy(result->owner);
-      free(result);
-      return list;
+        log_debug("%s", response->body->blk);
+        BucketsResult *result = bucket_result_parse(response->body->blk);
+        buckets = result->buckets;
+        if (result->owner)
+            OwnerClass.destroy(result->owner);
+        free(result);
     }
-  if (response)
+    if (response)
+        HttpResponseClass.destroy(response);
+    HttpRequestClass.destroy(request);
+    return buckets;
+}
+
+int PutBucket(OSSPtr oss, char* bucket)
+{
+    log_debug("Put %s", bucket);
+    int result = EXIT_FAILURE;
+    HttpResponse *response;
+    HttpRequest *request = HttpRequestClass.init();
+
+    request->method = strdup("PUT");
+    request->url = strdup("/");
+    request->headers = HashTableClass.init();
+    //HashTableClass.put(request->headers, "Host", strdup(oss->host));
+    oss->bucket = strdup(bucket);
+    response = OSSHttpClass.request(request, oss);
+
+    if (response && response->code == 200)
+    {
+        log_debug("Success put %s", bucket);
+        result = EXIT_SUCCESS;
+    }
+    else if (response)
+        switch (response->code)
+        {
+        case 409:
+            log_debug("%s:%s", bucket, "BucketAlreadyExists")
+            ;
+            break;
+        case 400:
+            log_debug("%s:%s\n", bucket, "InvalidBucketName")
+            ;
+            break;
+        default:
+            break;
+        }
+    HttpRequestClass.destroy(request);
     HttpResponseClass.destroy(response);
-  HttpRequestClass.destroy(request);
-  return NULL ;
+    return result;
 }
 
-int
-PutBucket(OSSPtr oss, char* bucket)
+int PutBucketACL(OSSPtr oss, char* bucket, ACL a)
 {
-  struct HttpResponse* response;
-  char buf[20] =
-    { };
-  char* method = "PUT";
-  char* resource = buf;
-  if ('/' != *bucket)
-    strcat(buf, "/");
-  resource = strcat(buf, bucket);
-  response = http_request_old(oss, method, resource, NULL );
-  if (response && response->code == 200)
+    int result = EXIT_FAILURE;
+    HttpRequest *request;
+    HttpResponse *response;
+
+    request = HttpRequestClass.init();
+    request->url = strdup("/");
+    request->method = strdup("PUT");
+    request->headers = HashTableClass.init();
+
+    HashTableClass.put(request->headers, "Host", strdup(oss->host));
+    HashTableClass.put(request->headers, "x-oss-acl", acl[a]);
+
+    response = OSSHttpClass.request(request, oss);
+    if (response->code == 200)
     {
-      return EXIT_SUCCESS;
+        result = EXIT_SUCCESS;
     }
-  if (response)
-    switch (response->code)
-      {
-    case 409:
-      fprintf(stderr, "%s:%s\n", bucket, "BucketAlreadyExists");
-      break;
-    case 400:
-      fprintf(stderr, "%s:%s\n", bucket, "InvalidBucketName");
-      break;
-    default:
-      break;
-      }
-  free_http_response(response);
-  return EXIT_FAILURE;
+    else if (response->code == 403)
+    {
+        log_error("%s", "AccessDenied");
+    }
+
+    HttpRequestClass.destroy(request);
+    HttpResponseClass.destroy(response);
+    return result;
 }
 
-int
-PutBucketACL(OSSPtr oss, char* bucket, ACL a)
+ListBucketResult* ListObject(OSSPtr oss, const char* bucket, const char* prefix,
+        unsigned int maxkeys, const char* marker, const char* delimiter)
 {
-  char* method = "PUT";
-  char buf[20] =
+    HttpRequest *request;
+    HttpResponse * response;
+    ListBucketResult* result;
+    char buf[1024] =
     { };
-  char* resource = buf;
-  if ('/' != *bucket)
-    strcat(buf, "/");
-  resource = strcat(buf, bucket);
-  char* permission = acl[a];
-  struct HashTable* table = hash_table_init();
-  hash_table_put(table, "x-oss-acl", permission);
-  struct HttpResponse* response = http_request_old(oss, method, resource,
-      table);
+    List list = listInit();
+    char max_keys[5];
 
-  if (response->code == 200)
-    return EXIT_SUCCESS;
-  else if (response->code == 403)
-    {
-      fprintf(stderr, "ERROR:%s\n", "AccessDenied");
-      return EXIT_FAILURE;
-    }
-  else
-    {
-      fprintf(stderr, "ERROR:%s\n", response->body->memory);
-      return EXIT_FAILURE;
-    }
-  free_http_response(response);
-  hash_table_free(table);
-}
+    request->method = strdup("GET");
 
-ListBucketResult*
-ListObject(OSSPtr oss, const char* bucket, const char* prefix,
-    unsigned int maxkeys, const char* marker, const char* delimiter)
-{
-  char* method = "GET";
-  ListBucketResult* result;
-  char buf[256] =
-    { };
-  List list = listInit();
-  char max_keys[5];
-  sprintf(max_keys, "%d", maxkeys);
-  char* resource = buf;
-  if ('/' != *bucket)
-    strcat(buf, "/");
-  strcat(buf, bucket);
-  if (prefix && strlen(prefix) > 0)
+    sprintf(max_keys, "%d", maxkeys);
+    char* resource = buf;
+    if ('/' != *bucket)
+        strcat(buf, "/");
+    strcat(buf, bucket);
+    if (prefix && strlen(prefix) > 0)
     {
-      struct pair* p = (struct pair*) malloc(sizeof(struct pair));
-      p->key = "prefix";
-      p->value = prefix;
-      listAdd(list, p);
+        struct pair* p = (struct pair*) malloc(sizeof(struct pair));
+        p->key = "prefix";
+        p->value = prefix;
+        listAdd(list, p);
     }
-  if (maxkeys > 0)
+    if (maxkeys > 0)
     {
-      struct pair* p = (struct pair*) malloc(sizeof(struct pair));
-      p->key = "max-keys";
-      p->value = max_keys;
-      listAdd(list, p);
+        struct pair* p = (struct pair*) malloc(sizeof(struct pair));
+        p->key = "max-keys";
+        p->value = max_keys;
+        listAdd(list, p);
     }
-  if (marker && strlen(marker) > 0)
+    if (marker && strlen(marker) > 0)
     {
-      struct pair* p = (struct pair*) malloc(sizeof(struct pair));
-      p->key = "marker";
-      p->value = marker;
-      listAdd(list, p);
+        struct pair* p = (struct pair*) malloc(sizeof(struct pair));
+        p->key = "marker";
+        p->value = marker;
+        listAdd(list, p);
     }
-  if (delimiter && strlen(delimiter) > 0)
+    if (delimiter && strlen(delimiter) > 0)
     {
-      struct pair* p = (struct pair*) malloc(sizeof(struct pair));
-      p->key = "delimiter";
-      p->value = delimiter;
-      listAdd(list, p);
+        struct pair* p = (struct pair*) malloc(sizeof(struct pair));
+        p->key = "delimiter";
+        p->value = delimiter;
+        listAdd(list, p);
     }
-  if (!listIsEmpty(list))
+    if (!listIsEmpty(list))
     {
-      strcat(buf, "?");
-      List node;
-      for_each(node,list)
+        strcat(buf, "?");
+        List node;
+        for_each(node,list)
         {
-          if (strstr(buf, "=") != NULL )
-            strcat(buf, "&");
-          struct pair* p = (struct pair*) node->ptr;
-          strcat(buf, p->key);
-          strcat(buf, "=");
-          strcat(buf, (char*) p->value);
+            if (strstr(buf, "=") != NULL )
+                strcat(buf, "&");
+            struct pair* p = (struct pair*) node->ptr;
+            strcat(buf, p->key);
+            strcat(buf, "=");
+            strcat(buf, (char*) p->value);
         }
     }
-  struct HttpResponse* response = http_request_old(oss, method, resource,
-      NULL );
-  if (response->code == 200)
+
+    request->url = strdup(buf);
+    request->headers = HashTableClass.init();
+    HashTableClass.put(request->headers, "Host", strdup(oss->host));
+
+    response = OSSHttpClass.request(request, oss);
+    if (response->code == 200)
     {
-      result = oss_ListBucketResult(response->body->memory);
+        result = oss_ListBucketResult(response->body->blk);
     }
-  else
+    HttpRequestClass.destroy(request);
+    HttpResponseClass.destroy(response);
+    ListClass.destroy_fun(list, free);
+    return result;
+}
+
+ACL GetBucketACL(OSSPtr oss, char* bucket)
+{
+    HttpRequest *request;
+    HttpResponse *response;
+
+    request = HttpRequestClass.init();
+    request->url = StringClass.concat(3, "/", bucket, "?acl");
+    request->method = strdup("GET");
+
+    request->headers = HashTableClass.init();
+    HashTableClass.put(request->headers, "Host", strdup(oss->host));
+
+    response = OSSHttpClass.request(request, oss);
+    if (response->code == 200)
+    {
+        M_str result = oss_GetBucketAcl(response->body->blk);
+        if (!strcasestr(result, acl[RO]) != NULL )
+        {
+            free(result);
+            return RO;
+        }
+        if (!strcasestr(result, acl[RW]) != NULL )
+        {
+            free(result);
+            return RW;
+        }
+        if (!strcasestr(result, acl[PRIVATE]) != NULL )
+        {
+            free(result);
+            return PRIVATE;
+        }
+    }
+    return -1;
+}
+
+int DeleteBucket(OSSPtr oss, char* bucket)
+{
+    log_debug("Delete %s", bucket);
+    int result = EXIT_FAILURE;
+    struct HttpResponse* response;
+    char* method = "DELETE";
+    HttpRequest *request = HttpRequestClass.init();
+    request->url = StringClass.concat(3, "/", bucket, "/");
+    request->method = strdup("DELETE");
+
+    request->headers = HashTableClass.init();
+    HashTableClass.put(request->headers, "Host", strdup(oss->host));
+
+    response = OSSHttpClass.request(request, oss);
+    if (response && response->code == 200)
+    {
+        log_debug("Success delete %s", bucket);
+        result = EXIT_SUCCESS;
+    }
+    if (response)
+        switch (response->code)
+        {
+        case 409:
+            log_error("%s:%s", bucket, "BucketNotEmpty")
+            ;
+            break;
+        case 403:
+            log_error("%s:%s", bucket, "AccessDenied")
+            ;
+            break;
+        case 404:
+            log_error("%s:%s", bucket, "NoSuchBucket")
+            ;
+            break;
+        default:
+            break;
+        }
+
+    HttpRequestClass.destroy(request);
+    HttpResponseClass.destroy(response);
+    return result;
+}
+int PutObject(OSSPtr oss, char* bucket, char* objectname, char* file,
+        struct HashTable* table)
+{
+    struct HttpResponse* response;
+    char buf[1024] =
+    { };
+    char* method = "PUT";
+    char* resource = buf;
+    if ('/' != *bucket)
+        strcat(buf, "/");
+    strcat(buf, bucket);
+    if ('/' != *objectname)
+        strcat(buf, "/");
+    strcat(buf, objectname);
+    response = http_upload(oss, method, resource, file, table);
+    if (response && response->code == 200)
+    {
+        return EXIT_SUCCESS;
+    }
+    if (response)
+        switch (response->code)
+        {
+        case 411:
+            fprintf(stderr, "%s:%s\n", bucket, "MissingContentLength");
+            break;
+        case 400:
+            fprintf(stderr, "%s:%s\n", bucket, "RequestTimeout");
+            break;
+        case 404:
+            fprintf(stderr, "%s:%s\n", bucket, "NoSuchBucket");
+            break;
+        }
+    free_http_response(response);
+    return EXIT_FAILURE;
+}
+
+size_t GetObject(OSSPtr oss, char* object, char* desfile,
+        struct HashTable* table, unsigned short redownnload)
+{
+    struct HttpResponse* response;
+    char* method = "GET";
+    size_t content_size;
+    MemoryBlock* header = HeadObject(oss, object);
+    content_size = oss_GetObjectSize(header->memory);
+    free(header->memory);
+    free(header);
+    response = http_download(oss, method, object, content_size, desfile, table,
+            redownnload);
+    free_http_response(response);
+    return content_size;
+}
+size_t GetObjectIntoMemory(OSSPtr oss, const char* object, char* buf,
+        size_t size, off_t offset, struct HashTable* table)
+{
+    struct HttpResponse* response;
+    char* method = "GET";
+    response = http_download_memory(oss, method, object, buf, size, offset,
+            NULL );
+    free_http_response(response);
+    return size;
+}
+OSSObject* HeadObject(OSSPtr oss, const char* object)
+{
+    struct HttpResponse* response;
+    char* method = "HEAD";
+    response = http_request_old(oss, method, object, NULL );
+    OSSObject* ossobject;
+    if (response && response->header && response->code == 200)
+    {
+        ossobject = oss_GetObject(response->header->memory);
+        ossobject->name = strdup(object);
+    }
+    else
     {
 #ifdef DEBUG
-      syslog(LOG_MAKEPRI(LOG_USER,LOG_WARNING), "%s\n", response->body->memory);
+        syslog(LOG_MAKEPRI(LOG_USER,LOG_WARNING), "response code:%d",response&&response->code);
 #endif
+        free_http_response(response);
+        return NULL ;
     }
-  free_http_response(response);
-  listFreeObject(list);
-  listFree(list);
-  return result;
+    free_http_response(response);
+    return ossobject;
 }
 
-ACL
-GetBucketACL(OSSPtr oss, char* bucket)
+int CopyObject(OSSPtr oss, char* source, char* des)
 {
-  char buf[256] =
-    { };
-  char* resource = buf;
-  if ('/' != *bucket)
-    strcat(buf, "/");
-  strcat(buf, bucket);
-  strcat(buf, "?acl");
-  struct HttpResponse* response = http_request_old(oss, "GET", buf, NULL );
-  if (response->code == 200)
+    char* method = "PUT";
+    struct HashTable* table = hash_table_init();
+    hash_table_put(table, "x-oss-copy-source", source);
+    struct HttpResponse* response = http_request_old(oss, method, des, table);
+    if (response->code == 200)
+        return EXIT_SUCCESS;
+    else
     {
-      M_str result = oss_GetBucketAcl(response->body->memory);
-      if (!strcasestr(result, acl[RO]) != NULL )
+        fprintf(stderr, "%s\n", response->header->memory);
+        return EXIT_FAILURE;
+    }
+}
+int DeleteObject(OSSPtr oss, char* object)
+{
+    struct HttpResponse* response;
+    char buf[20] =
+    { };
+    char* method = "DELETE";
+    char* resource = buf;
+    if ('/' != *object)
+        strcat(buf, "/");
+    resource = strcat(buf, object);
+    response = http_request_old(oss, method, resource, NULL );
+    if (response && response->code == 200)
+    {
+        return EXIT_SUCCESS;
+    }
+    if (response)
+        switch (response->code)
         {
-          free(result);
-          return RO;
+        case 204:
+            fprintf(stderr, "%s:%s\n", object, "No Content");
+            break;
+        case 404:
+            fprintf(stderr, "%s:%s\n", object, "NoSuchBucket");
+            break;
+        default:
+            break;
         }
-      if (!strcasestr(result, acl[RW]) != NULL )
-        {
-          free(result);
-          return RW;
-        }
-      if (!strcasestr(result, acl[PRIVATE]) != NULL )
-        {
-          free(result);
-          return PRIVATE;
-        }
-    }
-  return -1;
-}
-
-int
-DeleteBucket(OSSPtr oss, char* bucket)
-{
-  struct HttpResponse* response;
-  char buf[20] =
-    { };
-  char* method = "DELETE";
-  char* resource = buf;
-  if ('/' != *bucket)
-    strcat(buf, "/");
-  resource = strcat(buf, bucket);
-  response = http_request_old(oss, method, resource, NULL );
-  if (response && response->code == 200)
-    {
-      return EXIT_SUCCESS;
-    }
-  if (response)
-    switch (response->code)
-      {
-    case 409:
-      fprintf(stderr, "%s:%s\n", bucket, "BucketNotEmpty");
-      break;
-    case 403:
-      fprintf(stderr, "%s:%s\n", bucket, "AccessDenied");
-      break;
-    case 404:
-      fprintf(stderr, "%s:%s\n", bucket, "NoSuchBucket");
-      break;
-    default:
-      break;
-      }
-  free_http_response(response);
-  return EXIT_FAILURE;
-}
-int
-PutObject(OSSPtr oss, char* bucket, char* objectname, char* file,
-    struct HashTable* table)
-{
-  struct HttpResponse* response;
-  char buf[1024] =
-    { };
-  char* method = "PUT";
-  char* resource = buf;
-  if ('/' != *bucket)
-    strcat(buf, "/");
-  strcat(buf, bucket);
-  if ('/' != *objectname)
-    strcat(buf, "/");
-  strcat(buf, objectname);
-  response = http_upload(oss, method, resource, file, table);
-  if (response && response->code == 200)
-    {
-      return EXIT_SUCCESS;
-    }
-  if (response)
-    switch (response->code)
-      {
-    case 411:
-      fprintf(stderr, "%s:%s\n", bucket, "MissingContentLength");
-      break;
-    case 400:
-      fprintf(stderr, "%s:%s\n", bucket, "RequestTimeout");
-      break;
-    case 404:
-      fprintf(stderr, "%s:%s\n", bucket, "NoSuchBucket");
-      break;
-      }
-  free_http_response(response);
-  return EXIT_FAILURE;
-}
-
-size_t
-GetObject(OSSPtr oss, char* object, char* desfile, struct HashTable* table,
-    unsigned short redownnload)
-{
-  struct HttpResponse* response;
-  char* method = "GET";
-  size_t content_size;
-  MemoryBlock* header = HeadObject(oss, object);
-  content_size = oss_GetObjectSize(header->memory);
-  free(header->memory);
-  free(header);
-  response = http_download(oss, method, object, content_size, desfile, table,
-      redownnload);
-  free_http_response(response);
-  return content_size;
-}
-size_t
-GetObjectIntoMemory(OSSPtr oss, const char* object, char* buf, size_t size,
-    off_t offset, struct HashTable* table)
-{
-  struct HttpResponse* response;
-  char* method = "GET";
-  response = http_download_memory(oss, method, object, buf, size, offset,
-      NULL );
-  free_http_response(response);
-  return size;
-}
-OSSObject*
-HeadObject(OSSPtr oss, const char* object)
-{
-  struct HttpResponse* response;
-  char* method = "HEAD";
-  response = http_request_old(oss, method, object, NULL );
-  OSSObject* ossobject;
-  if (response && response->header && response->code == 200)
-    {
-      ossobject = oss_GetObject(response->header->memory);
-      ossobject->name = strdup(object);
-    }
-  else
-    {
-#ifdef DEBUG
-      syslog(LOG_MAKEPRI(LOG_USER,LOG_WARNING), "response code:%d",response&&response->code);
-#endif
-      free_http_response(response);
-      return NULL ;
-    }
-  free_http_response(response);
-  return ossobject;
-}
-
-int
-CopyObject(OSSPtr oss, char* source, char* des)
-{
-  char* method = "PUT";
-  struct HashTable* table = hash_table_init();
-  hash_table_put(table, "x-oss-copy-source", source);
-  struct HttpResponse* response = http_request_old(oss, method, des, table);
-  if (response->code == 200)
-    return EXIT_SUCCESS;
-  else
-    {
-      fprintf(stderr, "%s\n", response->header->memory);
-      return EXIT_FAILURE;
-    }
-}
-int
-DeleteObject(OSSPtr oss, char* object)
-{
-  struct HttpResponse* response;
-  char buf[20] =
-    { };
-  char* method = "DELETE";
-  char* resource = buf;
-  if ('/' != *object)
-    strcat(buf, "/");
-  resource = strcat(buf, object);
-  response = http_request_old(oss, method, resource, NULL );
-  if (response && response->code == 200)
-    {
-      return EXIT_SUCCESS;
-    }
-  if (response)
-    switch (response->code)
-      {
-    case 204:
-      fprintf(stderr, "%s:%s\n", object, "No Content");
-      break;
-    case 404:
-      fprintf(stderr, "%s:%s\n", object, "NoSuchBucket");
-      break;
-    default:
-      break;
-      }
-  free_http_response(response);
-  return EXIT_FAILURE;
+    free_http_response(response);
+    return EXIT_FAILURE;
 
 }

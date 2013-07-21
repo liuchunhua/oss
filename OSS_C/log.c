@@ -1,126 +1,122 @@
-
 #include <stdio.h>
 #include <stdarg.h>
 #include <unistd.h>
 #include <stdlib.h>
 
-
 #include "log.h"
 
 static FILE *logfile;
 
-LoggerOpration Logger = {
-        .level = 0,
-        .debug = logger_debug,
-        .info = logger_info,
-        .warn = logger_warn,
-        .error = logger_error
-};
+LoggerOpration Logger =
+{ .level = 0, .open = log_open, .close = log_close, .debug = logger_debug,
+        .info = logger_info, .warn = logger_warn, .error = logger_error };
 
-FILE *log_open(){
+FILE *log_open()
+{
 
-	logfile = fopen("hello.log","w");
-	if(logfile == NULL){
-		perror("logfile");
-		exit(EXIT_FAILURE);
-	}
+    logfile = fopen("hello.log", "w");
+    if (logfile == NULL )
+    {
+        perror("logfile");
+        exit(EXIT_FAILURE);
+    }
 
-	setlinebuf(logfile);
-	return logfile;
+    setlinebuf(logfile);
+    return logfile;
 }
 
 void log_close()
 {
-	fclose(logfile);	
+    fclose(logfile);
 }
 void log_msg(const char *format, ...)
 {
-	va_list op;
-	va_start(op,format);
-	vfprintf(logfile,format,op);
+    va_list op;
+    va_start(op, format);
+    vfprintf(logfile, format, op);
 }
-void log_stat(struct stat *stat){
-	//dev_t
-	log_struct(stat, st_dev, %lld, );
+void log_stat(struct stat *stat)
+{
+    //dev_t
+    log_struct(stat, st_dev, %lld,);
 
-	//ino_t
-	log_struct(stat, st_ino, %lld, );
-	
-	//mode_t
-	log_struct(stat, st_mode, 0%o, );
+    //ino_t
+    log_struct(stat, st_ino, %lld,);
 
-	//nlink_t
-	log_struct(stat, st_nlink, %d, );
+    //mode_t
+    log_struct(stat, st_mode, 0%o,);
 
-	//uid_t
-	log_struct(stat, st_uid, %d, );
+    //nlink_t
+    log_struct(stat, st_nlink, %d,);
 
-	//gid_t
-	log_struct(stat, st_gid, %d, );
+    //uid_t
+    log_struct(stat, st_uid, %d,);
 
-	//dev_t
-	log_struct(stat, st_rdev, %lld, );
+    //gid_t
+    log_struct(stat, st_gid, %d,);
 
-	//off_t
-	log_struct(stat, st_size, %lld, );
+    //dev_t
+    log_struct(stat, st_rdev, %lld,);
 
-	//blksize_t
-	log_struct(stat, st_blksize, %lld, );
+    //off_t
+    log_struct(stat, st_size, %lld,);
 
-	//blkcnt_t
-	log_struct(stat, st_blocks, %lld, );
+    //blksize_t
+    log_struct(stat, st_blksize, %lld,);
 
-	//time_t
-	log_struct(stat, st_atime, 0x%08lx, );
-	log_struct(stat, st_mtime, 0x%08lx, );
-	log_struct(stat, st_ctime, 0x%08lx, );
+    //blkcnt_t
+    log_struct(stat, st_blocks, %lld,);
+
+    //time_t
+    log_struct(stat, st_atime, 0x%08lx,);
+    log_struct(stat, st_mtime, 0x%08lx,);
+    log_struct(stat, st_ctime, 0x%08lx,);
 }
-
 
 void logger_debug(const char *format, ...)
 {
-	if(Logger.level == 0){
-		va_list op;
-		va_start(op, format);
-		fprintf(logfile, "[DEBUG] %s:%d",__FILE__, __LINE__);
-		vfprintf(logfile, format, op);
-		fprintf(logfile,"\n");
-	}
+    if (Logger.level == 0)
+    {
+        fprintf(logfile, "[DEBUG]");
+        va_list op;
+        va_start(op, format);
+        vfprintf(logfile, format, op);
+        fprintf(logfile, "\n");
+    }
 }
-
 
 void logger_info(const char *format, ...)
 {
-	if(Logger.level <= 1){
-		va_list op;
-		va_start(op, format);
-		fprintf(logfile, "[INFO] %s:%d",__FILE__, __LINE__);
-		vfprintf(logfile, format, op);
-		fprintf(logfile,"\n");
-	}
+    if (Logger.level <= 1)
+    {
+        va_list op;
+        va_start(op, format);
+        fprintf(logfile, "[INFO]");
+        vfprintf(logfile, format, op);
+        fprintf(logfile, "\n");
+    }
 }
 
 void logger_warn(const char *format, ...)
 {
-	if(Logger.level <= 2)
-	{
-		va_list op;
-		va_start(op, format);
-		fprintf(logfile, "[WARN] %s:%d",__FILE__, __LINE__);
-		vfprintf(logfile, format, op);
-		fprintf(logfile,"\n");
-	}
+    if (Logger.level <= 2)
+    {
+        va_list op;
+        va_start(op, format);
+        fprintf(logfile, "[WARN]");
+        vfprintf(logfile, format, op);
+        fprintf(logfile, "\n");
+    }
 }
-
 
 void logger_error(const char *format, ...)
 {
-	if(Logger.level <= 3)
-	{
-		va_list op;
-		va_start(op, format);
-		fprintf(logfile, "[ERROR] %s:%d",__FILE__, __LINE__);
-		vfprintf(logfile, format, op);
-		fprintf(logfile,"\n");
-	}
+    if (Logger.level <= 3)
+    {
+        va_list op;
+        va_start(op, format);
+        fprintf(logfile, "[ERROR]");
+        vfprintf(logfile, format, op);
+        fprintf(logfile, "\n");
+    }
 }

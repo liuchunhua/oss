@@ -68,7 +68,6 @@ static void oss_http_request_init(HttpRequest *httprequest, OSSPtr oss)
     }
 
     HashTableClass.put(httprequest->headers, "Date", date);
-    date = HashTableClass.get(httprequest->headers, "Date");
 
     HashTableClass.put(httprequest->headers, "Content-Type",
             strdup("text/plain"));

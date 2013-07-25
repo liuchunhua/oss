@@ -84,7 +84,7 @@ static void oss_http_request_init(HttpRequest *httprequest, OSSPtr oss)
         HashTableClass.put(httprequest->headers, "Host", strdup(oss->host));
     }
     log_debug("计算验证码");
-    char *key = oss_authorizate(oss->access_key, method, httprequest->headers,
+    char *key = new_oss_authorizate(oss, method, httprequest->headers,
             url);
 
     char *auth = StringClass.concat(4, "OSS ", oss->access_id, ":", key);
@@ -148,17 +148,12 @@ HttpResponse *oss_http_request(HttpRequest *httprequest, OSSPtr oss)
         {
             curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "DELETE");
         }
-        if (strcasecmp(method, "head") == 0)
-        {
-            curl_easy_setopt(curl, CURLOPT_NOBODY, 1L);
-        }
         if (oss->proxy != NULL )
         {
             curl_easy_setopt(curl, CURLOPT_PROXY, oss->proxy);
         }
         log_debug("http header init");
         chunk = curl_slist_append(chunk, "Content-Length:0");
-        chunk = curl_slist_append(chunk, "Expect:");
         curl_chunk_init(chunk, httprequest);
         log_debug("http header done");
 

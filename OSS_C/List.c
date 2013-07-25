@@ -21,7 +21,7 @@ ListOpration ListClass =
         .del = listDel,
         .destroy = listFree,
         .isEmpty = listIsEmpty,
-        .destroy_fun = listFreeObjectByFun
+        .destroy_fun = listDestroy
 };
 
 void listDestroy(List head, void (*free_fun)(void *))
@@ -41,6 +41,7 @@ void listDestroy(List head, void (*free_fun)(void *))
 List listInit()
 {
     List ls = (List) malloc(sizeof(List));
+    memset(ls, 0x0, sizeof(List));
     ls->next = ls->prev = ls;
     return ls;
 }
@@ -48,6 +49,7 @@ List listInit()
 List listAdd(List head, void* data)
 {
     assert(NULL!=head);
+    if(data == NULL) return NULL;
     List node = (List) malloc(sizeof(List));
     assert(node!=NULL);
     if (NULL == node)

@@ -661,7 +661,7 @@ int PutBucket(OSSPtr oss, char* bucket)
     HttpRequest *request = HttpRequestClass.init();
 
     request->method = strdup("PUT");
-    request->url = strdup("/");
+    request->url = strdup("/?a=b");
     request->headers = HashTableClass.init();
     //HashTableClass.put(request->headers, "Host", strdup(oss->host));
     oss->bucket = strdup(bucket);
@@ -701,9 +701,11 @@ int PutBucketACL(OSSPtr oss, char* bucket, ACL a)
     request->url = strdup("/");
     request->method = strdup("PUT");
     request->headers = HashTableClass.init();
+    
+    if(!oss->bucket)
+        oss->bucket = strdup(bucket);
 
-    HashTableClass.put(request->headers, "Host", strdup(oss->host));
-    HashTableClass.put(request->headers, "x-oss-acl", acl[a]);
+    HashTableClass.put(request->headers, "x-oss-acl", strdup(acl[a]));
 
     response = OSSHttpClass.request(request, oss);
     if (response->code == 200)
@@ -802,11 +804,11 @@ ACL GetBucketACL(OSSPtr oss, char* bucket)
     HttpResponse *response;
 
     request = HttpRequestClass.init();
-    request->url = StringClass.concat(3, "/", bucket, "?acl");
+    request->url = strdup("/?acl");
     request->method = strdup("GET");
-
+    if(!oss->bucket)
+        oss->bucket = strdup(bucket);
     request->headers = HashTableClass.init();
-    HashTableClass.put(request->headers, "Host", strdup(oss->host));
 
     response = OSSHttpClass.request(request, oss);
     if (response->code == 200)
@@ -838,11 +840,11 @@ int DeleteBucket(OSSPtr oss, char* bucket)
     struct HttpResponse* response;
     char* method = "DELETE";
     HttpRequest *request = HttpRequestClass.init();
-    request->url = StringClass.concat(3, "/", bucket, "/");
+    request->url = strdup("/");
     request->method = strdup("DELETE");
-
+    if(!oss->bucket)
+        oss->bucket = strdup(bucket);
     request->headers = HashTableClass.init();
-    HashTableClass.put(request->headers, "Host", strdup(oss->host));
 
     response = OSSHttpClass.request(request, oss);
     if (response && response->code == 200)

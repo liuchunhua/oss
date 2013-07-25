@@ -88,7 +88,7 @@ static char *to_string(List list)
         if (strlen(mem) != 0)
             strcat(mem, "\n");
         struct pair *pair = node->ptr;
-        char *key = StringClass.toUppercase(pair->key);
+        char *key = pair->key;
         char *value = pair->value;
         strcat(mem, key);
         strcat(mem, ":");
@@ -116,7 +116,7 @@ char *canonicalizedOSSHeaders(HashTable *headers)
         struct pair * pair = node->ptr;
         char *key = pair->key;
         log_debug("header[%s]", key);
-        if (strcasecmp(key, "x-oss-") == 0)
+        if (strstr(key, "x-oss-") != NULL)
         {
             struct pair *header = HashTableClass.get(table, key);
             if (header == NULL )
@@ -160,9 +160,11 @@ static char *to_res_string(List list)
     char *mem = malloc(len);
     memset(mem, 0x0, len);
     strcat(mem, list->next->ptr);
+    free(list->next->ptr);
+    ListClass.del(list->next);
 
     node = NULL;
-    for_each(node, list->next)
+    for_each(node, list)
     {
         if (i == 0)
             strcat(mem, "?");
@@ -170,6 +172,7 @@ static char *to_res_string(List list)
             strcat(mem, "&");
         char *str = node->ptr;
         strcat(mem, str);
+        i++;
     }
 
     return mem;
@@ -291,25 +294,44 @@ static char *new_canonicalizedResource(OSSPtr oss, const char * resource)
     {
         res = StringClass.concat(3, "/", oss->bucket, resource);
     }
-    res = strchr(resource, '?');
-    if (res == NULL )
+    log_debug("url : %s", res);
+    if (strchr(res, '?') == NULL )
     {
-        return strdup(resource);
+        return res;
     }
 
     char *resOld = res;
-    int n = StringClass.indexOf(resource, '?');
+    int n = StringClass.indexOf(res, '?');
 
     List list = ListClass.init();
-    ListClass.add(list, StringClass.substring(resource, 0, n - 1));
+    if(n > 0)
+    {
+        char *url = StringClass.substring(res, 0, n - 1);
+        log_debug("%s", url);
+        ListClass.add(list, StringClass.substring(res, 0, n - 1));
+        res = strstr(res, "?") + 1;
+    }
     while (res != NULL )
     {
         n = StringClass.indexOf(res, '&');
-        char *subresource = StringClass.substring(res, 0, n - 1);
+        char *subresource = NULL;
+        if(n > 0)
+            subresource = StringClass.substring(res, 0, n - 1);
+        else
+            subresource = strdup(res);
+        if(!subresource) break;
+
+        n = StringClass.indexOf(subresource, '=');
+
+        char *key = NULL;
+        if(n > 0)
+            key = subresource + n;
+        else
+            key = subresource;
         int i = 0;
         for (; i < sizeof(resources) / sizeof(char *); i++)
         {
-            if (strstr(subresource, resources[i]) != NULL )
+            if (strstr(key, resources[i]) != NULL )
             {
                 ListClass.add(list, strdup(subresource));
                 break;
@@ -317,14 +339,14 @@ static char *new_canonicalizedResource(OSSPtr oss, const char * resource)
         }
         for (i = 0; i < sizeof(override) / sizeof(char *); i++)
         {
-            if (strstr(subresource, override[i]) != NULL )
+            if (strstr(key, override[i]) != NULL )
             {
                 ListClass.add(list, strdup(subresource));
                 break;
             }
         }
         free(subresource);
-        res = strstr(res, "&");
+        res = strstr(res, "&") + 1;
     }
 
     res = to_res_string(list);

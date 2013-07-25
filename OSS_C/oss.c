@@ -728,42 +728,44 @@ ListBucketResult* ListObject(OSSPtr oss, const char* bucket, const char* prefix,
     HttpRequest *request;
     HttpResponse * response;
     ListBucketResult* result;
-    char buf[1024] =
-    { };
-    List list = listInit();
-    char max_keys[5];
 
+    request = HttpRequestClass.init();
     request->method = strdup("GET");
 
+    if(!oss->bucket)
+        oss->bucket = strdup(bucket);
+
+    char buf[1024] =
+    { };
+    buf[0] = '/';
+    List list = listInit();
+    char max_keys[5];
     sprintf(max_keys, "%d", maxkeys);
-    char* resource = buf;
-    if ('/' != *bucket)
-        strcat(buf, "/");
-    strcat(buf, bucket);
+
     if (prefix && strlen(prefix) > 0)
     {
-        struct pair* p = (struct pair*) malloc(sizeof(struct pair));
+        struct pair* p = malloc(sizeof(struct pair));
         p->key = "prefix";
         p->value = prefix;
         listAdd(list, p);
     }
     if (maxkeys > 0)
     {
-        struct pair* p = (struct pair*) malloc(sizeof(struct pair));
+        struct pair* p = malloc(sizeof(struct pair));
         p->key = "max-keys";
         p->value = max_keys;
         listAdd(list, p);
     }
     if (marker && strlen(marker) > 0)
     {
-        struct pair* p = (struct pair*) malloc(sizeof(struct pair));
+        struct pair* p = malloc(sizeof(struct pair));
         p->key = "marker";
         p->value = marker;
         listAdd(list, p);
     }
     if (delimiter && strlen(delimiter) > 0)
     {
-        struct pair* p = (struct pair*) malloc(sizeof(struct pair));
+        struct pair* p = malloc(sizeof(struct pair));
         p->key = "delimiter";
         p->value = delimiter;
         listAdd(list, p);
@@ -785,7 +787,6 @@ ListBucketResult* ListObject(OSSPtr oss, const char* bucket, const char* prefix,
 
     request->url = strdup(buf);
     request->headers = HashTableClass.init();
-    HashTableClass.put(request->headers, "Host", strdup(oss->host));
 
     response = OSSHttpClass.request(request, oss);
     if (response->code == 200)

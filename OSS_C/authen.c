@@ -321,17 +321,10 @@ static char *new_canonicalizedResource(OSSPtr oss, const char * resource)
             subresource = strdup(res);
         if(!subresource) break;
 
-        n = StringClass.indexOf(subresource, '=');
-
-        char *key = NULL;
-        if(n > 0)
-            key = subresource + n;
-        else
-            key = subresource;
         int i = 0;
         for (; i < sizeof(resources) / sizeof(char *); i++)
         {
-            if (strstr(key, resources[i]) != NULL )
+            if (strstr(subresource, resources[i]) != NULL )
             {
                 ListClass.add(list, strdup(subresource));
                 break;
@@ -339,14 +332,16 @@ static char *new_canonicalizedResource(OSSPtr oss, const char * resource)
         }
         for (i = 0; i < sizeof(override) / sizeof(char *); i++)
         {
-            if (strstr(key, override[i]) != NULL )
+            if (strstr(subresource, override[i]) != NULL )
             {
                 ListClass.add(list, strdup(subresource));
                 break;
             }
         }
         free(subresource);
-        res = strstr(res, "&") + 1;
+        res = strstr(res, "&");
+        if(res)
+            res += 1;
     }
 
     res = to_res_string(list);

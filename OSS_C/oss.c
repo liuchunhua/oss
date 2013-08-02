@@ -33,7 +33,9 @@ OSSOperation OSSClass =
 
 BucketOpration BucketClass =
 { .init = bucket_init, .destroy = bucket_destroy, .delete = DeleteBucket, .put =
-        PutBucket, .putAcl = PutBucketACL, .getAcl = GetBucketACL };
+    PutBucket, .putAcl = PutBucketACL, .getAcl = GetBucketACL };
+
+OSSObjectOperation OSSObjectClass = {.init = ossobject_init, .destroy = free_ossobject};
 
 struct HttpResponse
 {
@@ -111,14 +113,14 @@ static size_t read_callback(void *ptr, size_t size, size_t nmemb, void *stream)
     curl_off_t nread;
 
     /* in real-world cases, this would probably get this data differently
-     as this fread() stuff is exactly what the library already would do
-     by default internally */
+       as this fread() stuff is exactly what the library already would do
+       by default internally */
     retcode = fread(ptr, size, nmemb, stream);
 
     nread = (curl_off_t) retcode;
 
     fprintf(stderr, "*** We read %" CURL_FORMAT_CURL_OFF_T
-    " bytes from file\n", nread);
+            " bytes from file\n", nread);
 
     return retcode;
 }
@@ -556,24 +558,24 @@ static OSSObject* oss_GetObject(const char* httpheader)
     size_t content_size;
     for (str1 = httpheader;; str1 = NULL )
     {
-        token = strtok_r(str1, "\n", &savePtr1);
+        token = strtok_r(str1, "\r\n", &savePtr1);
         if (token == NULL )
             break;
-        int index = indexOf(token, ':');
+        int index = StringClass.indexOf(token, ':');
         if (index == -1)
             continue;
-        String* key = substring(token, 0, index - 1);
-        String*value = substring(token, index + 1, strlen(token));
-        if (strcasecmp(key->str, "Last-Modified") == 0)
-            object->mtime = StrGmtToLocaltime(value->str);
-        if (strcasecmp(key->str, "Content-Type") == 0)
-            object->minetype = strdup(value->str);
-        if (strcasecmp(key->str, "Content-Length") == 0)
-            object->size = atol(value->str);
-        if (strcasecmp(key->str, "ETag") == 0)
-            object->etag = strdup(value->str);
-        free_string(key);
-        free_string(value);
+        char *key = StringClass.substring(token, 0, index - 1);
+        char *value = StringClass.substring(token, index + 1, strlen(token));
+        if (strcasecmp(key, "Last-Modified") == 0)
+            object->mtime = StrGmtToLocaltime(value);
+        if (strcasecmp(key, "Content-Type") == 0)
+            object->minetype = strdup(value);
+        if (strcasecmp(key, "Content-Length") == 0)
+            object->size = atol(value);
+        if (strcasecmp(key, "ETag") == 0)
+            object->etag = strdup(value);
+        free(key);
+        free(value);
     }
     return object;
 }
@@ -585,6 +587,7 @@ static OSSObject* oss_GetObject(const char* httpheader)
 OSSPtr new_ossptr()
 {
     OSSPtr oss = (OSSPtr) malloc(sizeof(OSS));
+    memset(oss, 0x0, sizeof(OSS));
     if (oss == NULL )
     {
         fprintf(stderr, "%s\n", "OSS malloc failed");
@@ -609,6 +612,12 @@ void free_ossptr(OSSPtr oss)
         free(oss);
 }
 
+OSSObject *ossobject_init()
+{
+    OSSObject *ossObject = malloc(sizeof(OSSObject));
+    memset(ossObject, 0x0, sizeof(OSSObject));
+    return ossObject;
+}
 void free_ossobject(OSSObject* obj)
 {
     if (obj)
@@ -675,16 +684,16 @@ int PutBucket(OSSPtr oss, char* bucket)
     else if (response)
         switch (response->code)
         {
-        case 409:
-            log_debug("%s:%s", bucket, "BucketAlreadyExists")
-            ;
-            break;
-        case 400:
-            log_debug("%s:%s\n", bucket, "InvalidBucketName")
-            ;
-            break;
-        default:
-            break;
+            case 409:
+                log_debug("%s:%s", bucket, "BucketAlreadyExists")
+                    ;
+                break;
+            case 400:
+                log_debug("%s:%s\n", bucket, "InvalidBucketName")
+                    ;
+                break;
+            default:
+                break;
         }
     HttpRequestClass.destroy(request);
     HttpResponseClass.destroy(response);
@@ -701,7 +710,7 @@ int PutBucketACL(OSSPtr oss, char* bucket, ACL a)
     request->url = strdup("/");
     request->method = strdup("PUT");
     request->headers = HashTableClass.init();
-    
+
     if(!oss->bucket)
         oss->bucket = strdup(bucket);
 
@@ -856,41 +865,38 @@ int DeleteBucket(OSSPtr oss, char* bucket)
     if (response)
         switch (response->code)
         {
-        case 409:
-            log_error("%s:%s", bucket, "BucketNotEmpty")
-            ;
-            break;
-        case 403:
-            log_error("%s:%s", bucket, "AccessDenied")
-            ;
-            break;
-        case 404:
-            log_error("%s:%s", bucket, "NoSuchBucket")
-            ;
-            break;
-        default:
-            break;
+            case 409:
+                log_error("%s:%s", bucket, "BucketNotEmpty")
+                    ;
+                break;
+            case 403:
+                log_error("%s:%s", bucket, "AccessDenied")
+                    ;
+                break;
+            case 404:
+                log_error("%s:%s", bucket, "NoSuchBucket")
+                    ;
+                break;
+            default:
+                break;
         }
 
     HttpRequestClass.destroy(request);
     HttpResponseClass.destroy(response);
     return result;
 }
-int PutObject(OSSPtr oss, char* bucket, char* objectname, char* file,
-        struct HashTable* table)
+int PutObject(OSSPtr oss, const char *bucket, const char *objectname, const char *file)
 {
-    struct HttpResponse* response;
-    char buf[1024] =
-    { };
-    char* method = "PUT";
-    char* resource = buf;
-    if ('/' != *bucket)
-        strcat(buf, "/");
-    strcat(buf, bucket);
-    if ('/' != *objectname)
-        strcat(buf, "/");
-    strcat(buf, objectname);
-    response = http_upload(oss, method, resource, file, table);
+    HttpResponse *response;
+    HttpRequest *request;
+
+    request = HttpRequestClass.init();
+    request->url = strdup(objectname);
+    request->method = strdup("PUT");
+    if(!oss->bucket)
+        oss->bucket = strdup(bucket);
+
+    response = OSSHttpClass.request_upload(request, oss, file);
     if (response && response->code == 200)
     {
         return EXIT_SUCCESS;
@@ -898,33 +904,44 @@ int PutObject(OSSPtr oss, char* bucket, char* objectname, char* file,
     if (response)
         switch (response->code)
         {
-        case 411:
-            fprintf(stderr, "%s:%s\n", bucket, "MissingContentLength");
-            break;
-        case 400:
-            fprintf(stderr, "%s:%s\n", bucket, "RequestTimeout");
-            break;
-        case 404:
-            fprintf(stderr, "%s:%s\n", bucket, "NoSuchBucket");
-            break;
+            case 411:
+                log_error("%s:%s", bucket, "MissingContentLength");
+                break;
+            case 400:
+                log_error("%s:%s", bucket, "RequestTimeout");
+                break;
+            case 404:
+                log_error("%s:%s", bucket, "NoSuchBucket");
+                break;
         }
-    free_http_response(response);
+    HttpRequestClass.destroy(request);
+    HttpResponseClass.destroy(response);
     return EXIT_FAILURE;
 }
 
-size_t GetObject(OSSPtr oss, char* object, char* desfile,
-        struct HashTable* table, unsigned short redownnload)
+size_t GetObject(OSSPtr oss, const char *bucket, const char* object, const char *desfile)
 {
-    struct HttpResponse* response;
-    char* method = "GET";
-    size_t content_size;
-    MemoryBlock* header = HeadObject(oss, object);
-    content_size = oss_GetObjectSize(header->memory);
-    free(header->memory);
-    free(header);
-    response = http_download(oss, method, object, content_size, desfile, table,
-            redownnload);
-    free_http_response(response);
+    size_t content_size = 0;
+    HttpResponse *response;
+    HttpRequest *request;
+
+    request = HttpRequestClass.init();
+    request->url = strdup(object);
+    request->method = strdup("GET");
+    if(!oss->bucket)
+    {
+        oss->bucket = strdup(bucket);
+    }
+
+    response = OSSHttpClass.request_download(request, oss, desfile);
+    if(response->code == 200)
+    {
+        OSSObject *header = oss_GetObject(response->header); 
+        content_size = header->size;
+        OSSObjectClass.destroy(header);
+    }
+    HttpResponseClass.destroy(response);
+    HttpRequestClass.destroy(request);
     return content_size;
 }
 size_t GetObjectIntoMemory(OSSPtr oss, const char* object, char* buf,
@@ -937,54 +954,66 @@ size_t GetObjectIntoMemory(OSSPtr oss, const char* object, char* buf,
     free_http_response(response);
     return size;
 }
-OSSObject* HeadObject(OSSPtr oss, const char* object)
+OSSObject* HeadObject(OSSPtr oss, const char *bucket, const char* object)
 {
-    struct HttpResponse* response;
-    char* method = "HEAD";
-    response = http_request_old(oss, method, object, NULL );
-    OSSObject* ossobject;
+    HttpResponse *response;
+    HttpRequest *request;
+
+    request = HttpRequestClass.init();
+    request->url = strdup(object);
+    request->method = strdup("HEAD");
+
+    if(!oss->bucket)
+        oss->bucket = strdup(bucket);
+    response = OSSHttpClass.request(request, oss);
+    OSSObject *ossobject = NULL;
     if (response && response->header && response->code == 200)
     {
-        ossobject = oss_GetObject(response->header->memory);
+        ossobject = oss_GetObject(response->header->blk);
         ossobject->name = strdup(object);
     }
-    else
-    {
-#ifdef DEBUG
-        syslog(LOG_MAKEPRI(LOG_USER,LOG_WARNING), "response code:%d",response&&response->code);
-#endif
-        free_http_response(response);
-        return NULL ;
-    }
-    free_http_response(response);
+
+    HttpResponseClass.destroy(response);
+    HttpRequestClass.destroy(request);
     return ossobject;
 }
 
-int CopyObject(OSSPtr oss, char* source, char* des)
+int CopyObject(OSSPtr oss, const char *bucket, const char* source, char* des)
 {
-    char* method = "PUT";
-    struct HashTable* table = hash_table_init();
-    hash_table_put(table, "x-oss-copy-source", source);
-    struct HttpResponse* response = http_request_old(oss, method, des, table);
+    HttpRequest *request;
+    HttpResponse *response;
+
+    request = HttpRequestClass.init();
+    request->url = strdup(des);
+    request->method = strdup("PUT");
+    request->headers = HashTableClass.init();
+
+    if(!oss->bucket)
+        oss->bucket = strdup(bucket);
+
+    HashTableClass.put(request->headers, "x-oss-copy-source", source);
+    response = OSSHttpClass.request(request, oss); 
     if (response->code == 200)
         return EXIT_SUCCESS;
     else
     {
-        fprintf(stderr, "%s\n", response->header->memory);
+        log_error("%s", response->header->blk);
         return EXIT_FAILURE;
     }
 }
-int DeleteObject(OSSPtr oss, char* object)
+int DeleteObject(OSSPtr oss, const char *bucket, const char *object)
 {
-    struct HttpResponse* response;
-    char buf[20] =
-    { };
-    char* method = "DELETE";
-    char* resource = buf;
-    if ('/' != *object)
-        strcat(buf, "/");
-    resource = strcat(buf, object);
-    response = http_request_old(oss, method, resource, NULL );
+    HttpResponse *response;
+    HttpRequest *request;
+
+    request = HttpRequestClass.init();
+    request->url = strdup(object);
+    request->method = strdup("DELETE");
+
+    if(!oss->bucket)
+        oss->bucket = strdup(bucket);
+    response = OSSHttpClass.request(request, oss);
+
     if (response && response->code == 200)
     {
         return EXIT_SUCCESS;
@@ -992,16 +1021,16 @@ int DeleteObject(OSSPtr oss, char* object)
     if (response)
         switch (response->code)
         {
-        case 204:
-            fprintf(stderr, "%s:%s\n", object, "No Content");
-            break;
-        case 404:
-            fprintf(stderr, "%s:%s\n", object, "NoSuchBucket");
-            break;
-        default:
-            break;
+            case 204:
+                log_error("%s:%s", object, "No Content");
+                break;
+            case 404:
+                log_error("%s:%s", object, "NoSuchBucket");
+                break;
+            default:
+                break;
         }
-    free_http_response(response);
+    HttpResponseClass.destroy(response);
+    HttpRequestClass.destroy(request);
     return EXIT_FAILURE;
-
 }

@@ -5,21 +5,11 @@
  *      Author: lch
  */
 
-#include <string.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <assert.h>
-#include <curl/curl.h>
-#include <fcntl.h>
-#include <sys/stat.h>
-#include <unistd.h>
-#include <sys/types.h>
-#ifdef DEBUG
-#include <syslog.h>
-#endif
+#define _GNU_SOURCE
 
-#include "oss.h"
+
 #include "ossutil.h"
+#include "oss.h"
 #include "String.h"
 #include "service.h"
 #include "http.h"
@@ -49,7 +39,7 @@ struct Range
     size_t start;
     size_t end;
 };
-
+/**
 static void free_http_response(struct HttpResponse* response)
 {
     if (response)
@@ -67,9 +57,11 @@ static void free_http_response(struct HttpResponse* response)
         free(response);
     }
 }
+**/
 static char* acl[] =
 { "public-read-write", "public-read", "private" };
 
+/*
 static size_t write_memory(void *buffer, size_t size, size_t nmemb, void *userp)
 {
     size_t realsize = size * nmemb;
@@ -78,7 +70,6 @@ static size_t write_memory(void *buffer, size_t size, size_t nmemb, void *userp)
     mem->memory = realloc(mem->memory, mem->size + realsize + 1);
     if (mem->memory == NULL )
     {
-        /* out of memory! */
         printf("not enough memory (realloc returned NULL)\n");
         exit(EXIT_FAILURE);
     }
@@ -89,18 +80,17 @@ static size_t write_memory(void *buffer, size_t size, size_t nmemb, void *userp)
 
     return realsize;
 }
+
 static size_t write_buf(void *buffer, size_t size, size_t nmemb, void *userp)
 {
     size_t realsize = size * nmemb;
     MemoryBlock* mem = (MemoryBlock*) userp;
-#ifdef DEBUG
-    syslog(LOG_MAKEPRI(LOG_USER,LOG_WARNING), "read %ld bytes\n",(long int)realsize);
-#endif
     memcpy(&(mem->memory[mem->size]), buffer, realsize);
     mem->size += realsize;
     mem->memory[mem->size] = 0;
     return realsize;
 }
+
 static size_t write_data(void *ptr, size_t size, size_t nmemb, void *stream)
 {
     size_t written = fwrite(ptr, size, nmemb, (FILE *) stream);
@@ -112,9 +102,6 @@ static size_t read_callback(void *ptr, size_t size, size_t nmemb, void *stream)
     size_t retcode;
     curl_off_t nread;
 
-    /* in real-world cases, this would probably get this data differently
-       as this fread() stuff is exactly what the library already would do
-       by default internally */
     retcode = fread(ptr, size, nmemb, stream);
 
     nread = (curl_off_t) retcode;
@@ -146,8 +133,8 @@ static struct HttpResponse* response_init()
     response->header->size = 0;
     return response;
 }
-
-/*此方法已放弃，使用oss_http.h*/
+*/
+/*此方法已放弃，使用oss_http.h
 static struct HttpResponse* http_request_old(OSSPtr oss, const char* method,
         const char* requestresource, struct HashTable* headers)
 {
@@ -248,7 +235,8 @@ static struct HttpResponse* http_request_old(OSSPtr oss, const char* method,
     fprintf(stderr, "ERROR:%s\n", "request failed");
     return NULL ;
 }
-
+*/
+/*
 static struct HttpResponse* http_upload(OSSPtr oss, const char* method,
         const char* requestresource, char* file, struct HashTable* headers)
 {
@@ -453,7 +441,8 @@ static struct HttpResponse* http_download(OSSPtr oss, const char* method,
     fprintf(stderr, "ERROR:%s\n", "request failed");
     return NULL ;
 }
-
+*/
+/**
 static struct HttpResponse* http_download_memory(OSSPtr oss, const char* method,
         const char* requestresource, char* buf, size_t size, off_t offset,
         struct HashTable* headers)
@@ -547,16 +536,13 @@ static struct HttpResponse* http_download_memory(OSSPtr oss, const char* method,
     fprintf(stderr, "ERROR:%s\n", "request failed");
     return NULL ;
 }
-
+**/
 static OSSObject* oss_GetObject(const char* httpheader)
 {
-    char *str1, *str2, *token, *subtoken;
-    char *savePtr1, *savePtr2;
-    OSSObject* object = (OSSObject*) malloc(sizeof(OSSObject));
-    memset(object, 0x0, sizeof(object));
-    char* content_length;
-    size_t content_size;
-    for (str1 = httpheader;; str1 = NULL )
+    char *str1, *token;
+    char *savePtr1;
+    OSSObject* object = OSSObjectClass.init();
+    for (str1 = (char *)httpheader;; str1 = NULL )
     {
         token = strtok_r(str1, "\r\n", &savePtr1);
         if (token == NULL )
@@ -616,15 +602,19 @@ OSSObject *ossobject_init()
 {
     OSSObject *ossObject = malloc(sizeof(OSSObject));
     memset(ossObject, 0x0, sizeof(OSSObject));
+    ossObject->minetype = NULL;
     return ossObject;
 }
 void free_ossobject(OSSObject* obj)
 {
     if (obj)
     {
-        free(obj->etag);
-        free(obj->minetype);
-        free(obj->name);
+        if(obj->etag)
+            free(obj->etag);
+        if(obj->minetype)
+            free(obj->minetype);
+        if(obj->name)
+            free(obj->name);
         free(obj);
     }
 }
@@ -670,7 +660,7 @@ int PutBucket(OSSPtr oss, char* bucket)
     HttpRequest *request = HttpRequestClass.init();
 
     request->method = strdup("PUT");
-    request->url = strdup("/?a=b");
+    request->url = strdup("/");
     request->headers = HashTableClass.init();
     //HashTableClass.put(request->headers, "Host", strdup(oss->host));
     oss->bucket = strdup(bucket);
@@ -755,7 +745,7 @@ ListBucketResult* ListObject(OSSPtr oss, const char* bucket, const char* prefix,
     {
         struct pair* p = malloc(sizeof(struct pair));
         p->key = "prefix";
-        p->value = prefix;
+        p->value = (char *)prefix;
         listAdd(list, p);
     }
     if (maxkeys > 0)
@@ -769,14 +759,14 @@ ListBucketResult* ListObject(OSSPtr oss, const char* bucket, const char* prefix,
     {
         struct pair* p = malloc(sizeof(struct pair));
         p->key = "marker";
-        p->value = marker;
+        p->value = (char *)marker;
         listAdd(list, p);
     }
     if (delimiter && strlen(delimiter) > 0)
     {
         struct pair* p = malloc(sizeof(struct pair));
         p->key = "delimiter";
-        p->value = delimiter;
+        p->value = (char *)delimiter;
         listAdd(list, p);
     }
     if (!listIsEmpty(list))
@@ -824,17 +814,17 @@ ACL GetBucketACL(OSSPtr oss, char* bucket)
     if (response->code == 200)
     {
         M_str result = oss_GetBucketAcl(response->body->blk);
-        if (!strcasestr(result, acl[RO]) != NULL )
+        if (strcasestr(result, acl[RO]) != NULL )
         {
             free(result);
             return RO;
         }
-        if (!strcasestr(result, acl[RW]) != NULL )
+        if (strcasestr(result, acl[RW]) != NULL )
         {
             free(result);
             return RW;
         }
-        if (!strcasestr(result, acl[PRIVATE]) != NULL )
+        if (strcasestr(result, acl[PRIVATE]) != NULL )
         {
             free(result);
             return PRIVATE;
@@ -847,8 +837,7 @@ int DeleteBucket(OSSPtr oss, char* bucket)
 {
     log_debug("Delete %s", bucket);
     int result = EXIT_FAILURE;
-    struct HttpResponse* response;
-    char* method = "DELETE";
+    HttpResponse *response;
     HttpRequest *request = HttpRequestClass.init();
     request->url = strdup("/");
     request->method = strdup("DELETE");
@@ -918,7 +907,6 @@ int PutObject(OSSPtr oss, const char *bucket, const char *objectname, const char
     HttpResponseClass.destroy(response);
     return EXIT_FAILURE;
 }
-
 size_t GetObject(OSSPtr oss, const char *bucket, const char* object, const char *desfile)
 {
     size_t content_size = 0;
@@ -936,7 +924,7 @@ size_t GetObject(OSSPtr oss, const char *bucket, const char* object, const char 
     response = OSSHttpClass.request_download(request, oss, desfile);
     if(response->code == 200)
     {
-        OSSObject *header = oss_GetObject(response->header); 
+        OSSObject *header = oss_GetObject(response->header->blk); 
         content_size = header->size;
         OSSObjectClass.destroy(header);
     }
@@ -944,6 +932,8 @@ size_t GetObject(OSSPtr oss, const char *bucket, const char* object, const char 
     HttpRequestClass.destroy(request);
     return content_size;
 }
+
+/**
 size_t GetObjectIntoMemory(OSSPtr oss, const char* object, char* buf,
         size_t size, off_t offset, struct HashTable* table)
 {
@@ -954,6 +944,7 @@ size_t GetObjectIntoMemory(OSSPtr oss, const char* object, char* buf,
     free_http_response(response);
     return size;
 }
+**/
 OSSObject* HeadObject(OSSPtr oss, const char *bucket, const char* object)
 {
     HttpResponse *response;
@@ -991,7 +982,7 @@ int CopyObject(OSSPtr oss, const char *bucket, const char* source, char* des)
     if(!oss->bucket)
         oss->bucket = strdup(bucket);
 
-    HashTableClass.put(request->headers, "x-oss-copy-source", source);
+    HashTableClass.put(request->headers, "x-oss-copy-source", (char *)source);
     response = OSSHttpClass.request(request, oss); 
     if (response->code == 200)
         return EXIT_SUCCESS;

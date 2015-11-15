@@ -22,32 +22,6 @@
 
 #define GetNodeValue(node,structure,member)  if(node->type==XML_ELEMENT_NODE&&!strcasecmp((char*)node->name,#member)){ \
                                                                                                                         structure->member = (char*)xmlNodeGetContent(node);}
-typedef struct
-{
-  char *key;
-  char *lastmodified;
-  char *etag;
-  char *type;
-  char *size;
-  char *storageclass;
-  struct Owner *owner;
-
-} Contents;
-
-typedef struct
-{
-  char *name;
-  char *prefix;
-  char *marker;
-  char *maxkeys;
-  char *nextMarker;
-  char *delimiter;
-  char *istruncated;
-  List contents;          //List<Contents>
-  List commonprefixes;    //List<char*>
-
-} ListBucketResult;
-
 void
 free_Bucket(struct Bucket*);
 
@@ -57,8 +31,6 @@ free_Owner(struct Owner*);
 void
 free_Contents(Contents*);
 
-void
-free_ListBucketResult(ListBucketResult*);
 //the allocated memory
 typedef char *M_str;
 
@@ -68,7 +40,7 @@ char oss_buf[OSS_LEN];
  *@description:返回当前时间 "%a, %d %b %Y %H:%M:%S GMT"
  *@return:	当前时间字符串
  */
-M_str localtime_gmt();
+char *localtime_gmt();
 
 time_t StrGmtToLocaltime(const char*);
 

@@ -5,11 +5,11 @@
 all: test
 	echo "run test"
 
-test:$(OBJ) test.o
-	gcc -g -o $@ $(OBJ) test.o $(LIBS)
+test:$(OBJ) test.o ../liboss.a
+	gcc -g -o $@ test.o $(LIBS) 
 	
 %.o:%.c
-	$(CC) -g -Wall -c -o $@ $<  $(CFLAGS)
+	$(CC) -g -Wall -c -o $@ $<  $(CFLAGS) -I../
 	
 clean:
-	rm test test.o
+	rm -f test test.o

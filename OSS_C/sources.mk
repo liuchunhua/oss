@@ -1,1 +1,1 @@
-CFLAGS:=-I/usr/include/libxml2 -I../
+CFLAGS:=-I/usr/include/libxml2

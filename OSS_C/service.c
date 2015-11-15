@@ -23,6 +23,8 @@ BucketsResultOpration BucketsResultClass =
 OwnerOpration OwnerClass =
   { .init = owner_init, .destroy = owner_destroy };
 
+ListBucketResultOperation ListBucketResultClass = 
+{   .destroy = free_ListBucketResult };
 Bucket *bucket_init()
 {
   Bucket *bucket = malloc(sizeof(Bucket));
@@ -176,3 +178,22 @@ BucketsResult *bucket_result_parse(const char *xml)
 
   return result;
 }
+
+
+void free_ListBucketResult(ListBucketResult *result)
+{
+    xmlFree(result->istruncated);
+    xmlFree(result->delimiter);
+    xmlFree(result->marker);
+    xmlFree(result->maxkeys);
+    xmlFree(result->name);
+    xmlFree(result->nextMarker);
+    xmlFree(result->prefix);
+    if (result->commonprefixes)
+    {
+        listFreeObjectByFun(result->contents, (void (*)(void *))free_Contents);
+        listFree(result->contents);
+    }
+}
+
+

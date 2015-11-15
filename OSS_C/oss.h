@@ -8,11 +8,12 @@
 #ifndef OSS_H_
 #define OSS_H_
 
-#include "List.h"
-#include "ossutil.h"
-#include "oss_config.h"
+#include <stdlib.h>
 
-#include <stdio.h>
+#include "oss_config.h"
+#include "service.h"
+
+
 
 typedef struct OSSObject OSSObject;
 
@@ -27,14 +28,26 @@ struct OSSObject
 
 typedef struct
 {
+    OSSObject *(*init)();
+    void (*destroy)(OSSObject *);
+}OSSObjectOperation;
+
+typedef struct
+{
     char *memory;
     size_t size;
 } MemoryBlock;
+
+extern OSSObjectOperation OSSObjectClass;
 
 OSSPtr new_ossptr();
 
 void free_ossptr(OSSPtr);
 
+//初始化
+OSSObject *ossobject_init();
+
+//释放
 void free_ossobject(OSSObject*);
 
 /*
@@ -63,20 +76,16 @@ int DeleteBucket(OSSPtr oss, char* bucket);
 ListBucketResult* ListObject(OSSPtr oss, const char* bucket, const char* prefix,
         unsigned int maxkeys, const char* marker, const char* delimiter);
 
-int PutObject(OSSPtr oss, char* bucket, char* objectname, char* file,
-        struct HashTable* table);
+int PutObject(OSSPtr oss, const char* bucket, const char* objectname, const char* file);
 /*
  * @return 文件大小
  */
-size_t GetObject(OSSPtr oss, char* object, char* desfile,
-        struct HashTable* table, unsigned short redownnload);
-size_t GetObjectIntoMemory(OSSPtr oss, const char* object, char* buf,
-        size_t size, off_t offset, struct HashTable* table);
+size_t GetObject(OSSPtr oss, const char *bucket, const char* object, const char *desfile);
 
-OSSObject* HeadObject(OSSPtr oss, const char* object);
+OSSObject* HeadObject(OSSPtr oss, const char *bucket, const char *object);
 
-int CopyObject(OSSPtr oss, char* source, char* des);
+int CopyObject(OSSPtr oss, const char *bucket, const char *source, char *des);
 
-int DeleteObject(OSSPtr oss, char* object);
+int DeleteObject(OSSPtr oss, const char *bucket, const char *object);
 
 #endif /* OSS_H_ */

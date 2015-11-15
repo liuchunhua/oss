@@ -294,6 +294,8 @@ static char *new_canonicalizedResource(OSSPtr oss, const char * resource)
     {
         res = StringClass.concat(3, "/", oss->bucket, resource);
     }
+    else
+        res = strdup(resource);
     log_debug("url : %s", res);
     if (strchr(res, '?') == NULL )
     {

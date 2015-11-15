@@ -10,7 +10,9 @@
 
 #include <fcntl.h>
 #include <time.h>
+#include <stdio.h>
 
+#include "oss_config.h"
 #define OSS_MASK  (S_IRWXU|S_IRWXG|S_IRWXO|S_ISUID|S_ISGID|S_ISVTX)
 
 typedef struct oss_handle oss_handle;
@@ -83,7 +85,7 @@ struct oss_node
 
 
 void
-oss_init_cache(const char* dir);
+oss_init_cache(OSSPtr oss);
 
 /*sync is 1 not to save back to server*/
 void
@@ -93,17 +95,11 @@ oss_close_cache(int sync);
 void
 oss_reatattr(oss_node* node,struct stat* stat);
 /*get oss_node from path*/
-oss_node*
-oss_get_cache(const char* path);
+oss_node* oss_get_cache(const char* path);
 /**/
-oss_node*
-make_node(const char* path);
+oss_node* make_node(const char* path);
 
-int
-oss_open_node(const char* path,int flags);
+int oss_open_node(const char* path,int flags);
 /* 从服务器获得该节点的字节点*/
-void
-oss_read_dir(oss_node* dir);
-void
-log_msg(const char* format,...);
+void oss_read_dir(oss_node* dir);
 #endif /* CACHE_H_ */

@@ -5,6 +5,8 @@
  *     Author: lch
  */
 
+#define _GNU_SOURCE
+
 #include "ossutil.h"
 #include "base64.h"
 #include "HashTable.h"
@@ -16,10 +18,8 @@
 #include <string.h>
 #include <openssl/hmac.h>
 #include <assert.h>
-#include <libxml/xmlmemory.h>
-#include <libxml/parser.h>
 
-M_str localtime_gmt()
+char *localtime_gmt()
 {
     time_t cur_time;
     memset(oss_buf, 0x0, sizeof(oss_buf));
@@ -200,6 +200,7 @@ static ListBucketResult *getListBucketResult(xmlNodePtr node)
     return NULL ;
 }
 
+/*
 //按字母顺序升序排列,合并相同
 static void sort_list_asc(List ls)
 {
@@ -248,7 +249,8 @@ static void sort_list_asc(List ls)
         last = last->prev;
     }
 }
-
+*/
+/*
 static M_str oss_authorizate(const char *key, const char *method,
         struct HashTable *headers, const char *resource)
 {
@@ -257,7 +259,7 @@ static M_str oss_authorizate(const char *key, const char *method,
     char *content_type = (char*) hash_table_get(headers, "Content-Type");
     int n = strcspn(resource, "?");
     char *res = strndup(resource, n);
-    if (res && strlen(res) > 0 && strcasestr(resource, "acl") == NULL )
+    if (res && strlen(res) > 0 && strstr(resource, "acl") == NULL )
         resource = res;
     assert(resource!=NULL);
     assert(date!=NULL);
@@ -279,9 +281,9 @@ static M_str oss_authorizate(const char *key, const char *method,
     for_each(node,list)
     {
         struct pair *p = (struct pair*) node->ptr;
-        if (strcasestr((char*) (p->key), "x-oss-") != NULL
+        if (strstr((char*) (p->key), "x-oss-") != NULL
         // override 查询字符
-        || strcasestr((char*) (p->key), "response") != NULL )
+        || strstr((char*) (p->key), "response") != NULL )
         {
             strcat(buf, (char*) (p->key));
             strcat(buf, ":");
@@ -295,7 +297,8 @@ static M_str oss_authorizate(const char *key, const char *method,
     free(res);
     return code;
 }
-
+*/
+/*
 List oss_ListAllMyBucketsResult(const char *xml, struct Owner *owner)
 {
     xmlDocPtr doc;
@@ -324,7 +327,7 @@ List oss_ListAllMyBucketsResult(const char *xml, struct Owner *owner)
     xmlFreeDoc(doc);
     return list;
 }
-
+*/
 ListBucketResult *oss_ListBucketResult(const char *xml)
 {
     xmlDocPtr doc;
@@ -350,9 +353,9 @@ M_str oss_GetBucketAcl(const char *xml)
     while (cur)
     {
         if (cur->type == XML_ELEMENT_NODE
-                && strcasecmp(cur->name, "AccessControlList") == 0)
+                && strcmp((char *)cur->name, "AccessControlList") == 0)
         {
-            result = strdup(xmlNodeGetContent(cur));
+            result = strdup((char *)xmlNodeGetContent(cur));
         }
         cur = cur->next;
     }
@@ -369,27 +372,6 @@ void free_Contents(Contents *content)
     xmlFree(content->type);
     if (content->owner)
         free_Owner(content->owner);
-}
-
-void free_ListBucketResult(ListBucketResult *result)
-{
-    xmlFree(result->istruncated);
-    xmlFree(result->delimiter);
-    xmlFree(result->marker);
-    xmlFree(result->maxkeys);
-    xmlFree(result->name);
-    xmlFree(result->nextMarker);
-    xmlFree(result->prefix);
-    if (result->commonprefixes)
-    {
-        listFreeObject(result->commonprefixes);
-        listFree(result->commonprefixes);
-    }
-    if (result->contents)
-    {
-        listFreeObjectByFun(result->contents, free_Contents);
-        listFree(result->contents);
-    }
 }
 
 void free_Bucket(struct Bucket *bucket)
@@ -411,12 +393,12 @@ size_t oss_GetObjectSize(const char *httpheader)
     char *savePtr1, *savePtr2;
     char *content_length;
     size_t content_size;
-    for (str1 = httpheader;; str1 = NULL )
+    for (str1 = (void *)httpheader;; str1 = NULL )
     {
         token = strtok_r(str1, "\n", &savePtr1);
         if (token == NULL )
             break;
-        if (strcasestr(token, "content-length") == NULL )
+        if (strcasestr(token, "Content-Length") == NULL )
             continue;
         for (str2 = token;; str2 = NULL )
         {

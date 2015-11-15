@@ -13,7 +13,7 @@
 
 #include "String.h"
 
-extern StringOpation StringClass =
+StringOpation StringClass =
 {
         .init = new_string,
         .destroy = free_string,
